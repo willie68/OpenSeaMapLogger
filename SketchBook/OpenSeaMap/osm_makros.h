@@ -19,3 +19,18 @@
 
 #define between(a,x,y) ((a >=x) && (a <= y))
 
+#define print2Dec(value, stream) \
+  if (value < 10) {\
+    stream.print("0");\
+  }\
+  stream.print(value);\
+
+#define print3Dec(value, stream) \
+  if (value < 100) {\
+    stream.print("0");\
+  }\
+  if (value < 10) {\
+    stream.print("0");\
+  }\
+  stream.print(value);\
+

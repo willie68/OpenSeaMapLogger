@@ -3,7 +3,7 @@
  
  This example shows how to read a file from the SD card using the
  SD library and send it over the serial port.
-   
+ 
  The circuit:
  * SD card attached to SPI bus as follows:
  ** MOSI - pin 11
@@ -17,7 +17,7 @@
  by Tom Igoe
  
  This example code is in the public domain.
-     
+ 
  */
 
 #include <SD.h>
@@ -30,9 +30,9 @@ const int chipSelect = 10;
 
 void setup()
 {
- // Open serial communications and wait for port to open:
+  // Open serial communications and wait for port to open:
   Serial.begin(4800);
-   while (!Serial) {
+  while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   }
 
@@ -41,7 +41,7 @@ void setup()
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(10, OUTPUT);
- 
+
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
@@ -49,7 +49,7 @@ void setup()
     return;
   }
   Serial.println("card initialized.");
- 
+
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   File dataFile = SD.open("test.txt",FILE_WRITE);
@@ -58,7 +58,7 @@ void setup()
     dataFile.write("\r\neine Möhre für 2");
     dataFile.flush();
     dataFile.close();
-    
+
     dataFile = SD.open("1/test.txt",FILE_READ);
     while (dataFile.available()) {
       Serial.write(dataFile.read());
@@ -76,4 +76,39 @@ void setup()
 
 void loop()
 {
+  writeTimeStamp(millis());
 }
+
+#define print2Dec(value, stream) \
+  if (value < 10) {\
+    stream.print("0");\
+  }\
+  stream.print(value);\
+
+#define print3Dec(value, stream) \
+  if (value < 100) {\
+    stream.print("0");\
+  }\
+  if (value < 10) {\
+    stream.print("0");\
+  }\
+  stream.print(value);\
+
+
+void writeTimeStamp(unsigned long time) {
+  word mil = time % 1000;
+  word div = time / 1000;
+
+  byte sec = div % 60;
+  byte minute = (div / 60) % 60;
+  byte hour = (div / 3600) % 24; 
+
+  print2Dec(hour, Serial);
+  Serial.print(":");
+  print2Dec(minute, Serial);
+  Serial.print(":");
+  print2Dec(sec, Serial);
+  Serial.print(".");
+  print3Dec(mil, Serial);
+}
+

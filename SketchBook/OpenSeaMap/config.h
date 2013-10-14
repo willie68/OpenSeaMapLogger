@@ -12,17 +12,17 @@ const byte NMEA_B_RX = 8;
 const byte NMEA_B_TX = 9;
 // LEDs
 // Write led is PD6
-const byte LED_WRITE = 6;
+const byte LED_WRITE = 6; // PD6
 // Power LED is PD7
-const byte LED_POWER = 7;
+const byte LED_POWER = 7; // PD7
 // RX_A LED is PD5
-const byte LED_RX_B = 5;
+const byte LED_RX_B = 5; // PD5
 // Power LED is PD4
-const byte LED_RX_A = 4;
+const byte LED_RX_A = 4; // PD4
 
 // Switches
 // Switch stop is PD3
-const byte SW_STOP = 3;
+const byte SW_STOP = 3; // PD3
 
 // Voltagevalue for shutdown
 const int VCC_GOLDCAP = 4600;

@@ -1,5 +1,4 @@
 #define debug
-//#define NO_SD
 #include <Wire.h>
 #include <I2Cdev.h>
 #include <MPU6050.h>
@@ -7,9 +6,7 @@
 #include "osm_makros.h"
 #include "config.h"
 #include <SoftwareSerial.h>
-#ifndef NO_SD
 #include <SD.h>
-#endif
 
 /*
  OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.0.3
@@ -111,13 +108,12 @@ void setup() {
   pinMode(SD_CHIPSELECT, OUTPUT);
 
   // see if the card is present and can be initialized:
-#ifndef NO_SD
   while (!SD.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present"));
-    digitalWrite(LED_WRITE, !digitalRead(LED_WRITE));
+    PORTD ^= _BV(LED_WRITE);
+    //digitalWrite(LED_WRITE, !digitalRead(LED_WRITE));
     delay(500);
   }
-#endif
 
   dbgOutLn(F("Init NMEA"));
   if (!getParameters()) {
@@ -155,7 +151,6 @@ boolean getParameters() {
   dbgOutLn(F("readconf"));
   boolean result = false;
   char filename[11] = "config.dat";
-#ifndef NO_SD
   if (SD.exists(filename)) {    // only open a new file if it doesn't exist
     result = true;
     File configFile = SD.open(filename);
@@ -218,13 +213,10 @@ boolean getParameters() {
       configFile.close();
     }
   }
-#endif
   return result;
 }
 
-#ifndef NO_SD
 File dataFile;
-#endif
 long count = 0;
 int filecount = 0;
 
@@ -243,66 +235,78 @@ unsigned long vccTime, start_a, start_b;
 
 inline void writeLEDOn()  {
   lastW = millis();
-  digitalWrite(LED_WRITE,1);
+  PORTD |= _BV(LED_WRITE);
+  //  digitalWrite(LED_WRITE,1);
 }
 
 inline void writeLEDOff() {
-  digitalWrite(LED_WRITE,0);
+  PORTD &= ~_BV(LED_WRITE);
+  //  digitalWrite(LED_WRITE,0);
 }
 
 
 void loop() {
-  //  testLED();
   // im Fehlerfall blinken
   if (error) {
-    digitalWrite(LED_POWER, (millis() % 500) > 250);
+    if ((millis() % 500) > 250) {
+      PORTD &= ~_BV(LED_POWER);
+    } 
+    else {
+      PORTD |= _BV(LED_POWER);
+    }
+    //    digitalWrite(LED_POWER, (millis() % 500) > 250);
+  } 
+  else {
+    PORTD |= _BV(LED_POWER);
+    //    digitalWrite(LED_POWER, 1);
   }
 
   long now = millis();
   if (now > (lastW + 500)) {
-    digitalWrite(LED_WRITE, 0);
+    PORTD &= ~_BV(LED_WRITE);    
+    //    digitalWrite(LED_WRITE, 0);
   }
 
   if (now > (lastA + 500)) {
-    digitalWrite(LED_RX_A, 0);
+    PORTD &= ~_BV(LED_RX_A);
+    //    digitalWrite(LED_RX_A, 0);
   }
 
   if (now > (lastB + 500)) {
-    digitalWrite(LED_RX_B, 0) ;
+    PORTD &= ~_BV(LED_RX_B);
+    //    digitalWrite(LED_RX_B, 0) ;
   }
 
   // Versorgungsspannung messen
   vcc = readVcc();
   vccTime = millis();
   // Bei Unterspannung, alles herrunter fahren
-  if ((vcc < VCC_GOLDCAP) | (digitalRead(SW_STOP)==0)) {
+  if ((vcc < VCC_GOLDCAP) || (digitalRead(SW_STOP)==0)) {
     // Alle LED's aus, Strom sparen
-    digitalWrite(LED_POWER, 0);
-    digitalWrite(LED_RX_A, 0);
-    digitalWrite(LED_RX_B, 0);
-    digitalWrite(LED_WRITE, 0);
+    PORTD &= ~(_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
+    //    digitalWrite(LED_POWER, 0);
+    //    digitalWrite(LED_RX_A, 0);
+    //    digitalWrite(LED_RX_B, 0);
+    //    digitalWrite(LED_WRITE, 0);
 
-#ifndef NO_SD
     if (dataFile) {
       writeVCC();
       stopLogger();
       dbgOutLn(F("Shutdown detected, datafile closed"));
     }
-#endif
-    digitalWrite(LED_POWER, 1);
-    digitalWrite(LED_RX_A, 1);
-    digitalWrite(LED_RX_B, 1);
-    digitalWrite(LED_WRITE, 1);
+    // Jetzt alle LED's einschalten, damit ordentlich strom verbraucht wird.
+    PORTD |= _BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE);
+    //    digitalWrite(LED_POWER, 1);
+    //    digitalWrite(LED_RX_A, 1);
+    //    digitalWrite(LED_RX_B, 1);
+    //    digitalWrite(LED_WRITE, 1);
     delay(10000);
   } 
   else {
-#ifndef NO_SD
     if (!dataFile) {
       newFile();
     }
-#endif
 
-    digitalWrite(LED_POWER, 1);
     testFirstSerial();
     testSecondSerial();
 
@@ -311,7 +315,9 @@ void loop() {
     if ((now - 1000) > lastMillis) {
       lastMillis = now;
       writeGyroData();
+#ifdef debug
       writeVCC();
+#endif
     }
   }
 }
@@ -339,22 +345,13 @@ void writeGyroData() {
   accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
   unsigned long startTime = millis();
   // print to the serial port too:
-  if (!error) {
-#ifndef NO_SD
-    if (dataFile) {
-      writeTimeStamp(startTime);
-      char data[80];
-      sprintf(data, GYRO_MESSAGE, ax, ay, az); 
-      writeData(startTime, data);
-      sprintf(data, ACC_MESSAGE, gx, gy, gz); 
-      writeData(startTime, data);
-    }  
-    // if the file isn't open, pop up an error:
-    else {
-      dbgOutLn(F("no datafile"));
-    }
-#endif
-  }
+  if (dataFile) {
+    char data[80];
+    sprintf(data, GYRO_MESSAGE, ax, ay, az); 
+    writeData(startTime, data);
+    sprintf(data, ACC_MESSAGE, gx, gy, gz); 
+    writeData(startTime, data);
+  }  
 }
 
 word lastStartNumber = 0;
@@ -374,25 +371,20 @@ void newFile() {
     filename[6] = z + '0';          // subtracts hundreds & tens for single digit
     e = i - (t*1000) - (h*100) - (z*10);
     filename[7] = e + '0';          // calculates hundreds position
-#ifndef NO_SD
     if (! SD.exists(filename)) {    // only open a new file if it doesn't exist
       dataFile = SD.open(filename, FILE_WRITE);
       lastStartNumber = i;
       break;                        // leave the loop after finding new filename
     }
-#endif
   }
-#ifndef NO_SD
   if (dataFile) {
     char data[80];
     strcpy(data, START_MESSAGE);
     writeData(millis(), data);          // write data to card
   }
-#endif
 }
 
 void stopLogger() {
-#ifndef NO_SD
   if (dataFile) {
     dbgOutLn(F("close datafile."));
     char data[80];
@@ -401,7 +393,6 @@ void stopLogger() {
     dataFile.flush();
     dataFile.close();
   }
-#endif
 }
 
 // 1. Schnittstelle abfragen
@@ -444,15 +435,13 @@ void SeaTalkInputA(int incomingByte) {
   buffer_a[index_a] = (byte) incomingByte;
   index_a++;
   if (index_a >= dataLength) {
-#ifndef NO_SD
     if (dataFile) {
       writeLEDOn();
-      writeTimeStamp(start_a);
+      writeTimeStamp(start_a, dataFile);
       dataFile.write(buffer_a, index_a-1);
       dataFile.println();
       writeLEDOff();
     }
-#endif
     index_a = 0;    
   }
 }
@@ -468,15 +457,13 @@ void NMEAInputA(int incomingByte) {
     Serial.write(buffer_a, index_a);
     Serial.println();
 #endif
-#ifndef NO_SD
     if (dataFile) {
       writeLEDOn();
-      writeTimeStamp(start_a);
+      writeTimeStamp(start_a, dataFile);
       dataFile.write(buffer_a, index_a);
       dataFile.println();
       writeLEDOff();
     }
-#endif
     index_a = 0;
   } 
 }
@@ -504,15 +491,13 @@ void testSecondSerial() {
           Serial.write(buffer_b, index_b);
           Serial.println();
 #endif
-#ifndef NO_SD
           if (dataFile) {
             writeLEDOn();
-            writeTimeStamp(start_b);
+            writeTimeStamp(start_b, dataFile);
             dataFile.write(buffer_b, index_b);
             dataFile.println();
             writeLEDOff();
           }
-#endif
           index_b = 0;
         } 
       }
@@ -521,28 +506,31 @@ void testSecondSerial() {
 }
 
 void writeData(unsigned long startTime, char* data) {
-#ifndef NO_SD
   if (dataFile) {
-    writeTimeStamp(startTime);
+    writeTimeStamp(startTime, dataFile);
     writeNMEAData(data);
   }
-#endif
 }
 
-void writeTimeStamp(unsigned long time) {
+void writeTimeStamp(unsigned long time, File dataFile) {
   word mil = time % 1000;
   word div = time / 1000;
 
   byte sec = div % 60;
   byte minute = (div / 60) % 60;
   byte hour = (div / 3600) % 24; 
-  char timedata[16];
-  sprintf_P(timedata, PSTR("%02d:%02d:%02d.%03u: "), hour, minute, sec, mil); 
-#ifndef NO_SD
+  //  char timedata[16];
+  //  sprintf_P(timedata, PSTR("%02d:%02d:%02d.%03u: "), hour, minute, sec, mil); 
   if (dataFile) {
-    dataFile.print(timedata);
+    print2Dec(hour, dataFile);
+    Serial.print(":");
+    print2Dec(minute, dataFile);
+    Serial.print(":");
+    print2Dec(sec, dataFile);
+    Serial.print(".");
+    print3Dec(mil, dataFile);
+    //  dataFile.print(timedata);
   }
-#endif
 }
 
 void writeNMEAData(char* data) {
@@ -551,7 +539,6 @@ void writeNMEAData(char* data) {
   for(int i = 0; i < strlen(data); i++) {
     crc ^= data[i]; 
   }
-#ifndef NO_SD
   if (dataFile) {
     dataFile.write("$");
     dataFile.print(data);
@@ -561,7 +548,6 @@ void writeNMEAData(char* data) {
     }
     dataFile.println(crc,HEX);
   }
-#endif
 #ifdef debug
   dbgOut("$");
   dbgOut(data);
@@ -570,3 +556,5 @@ void writeNMEAData(char* data) {
 #endif
   writeLEDOff();
 }
+
+
