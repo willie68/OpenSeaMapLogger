@@ -23,13 +23,13 @@
 
 #ifdef debug
 #define dbgOut(S) \
-Serial.print(S); 
+  Serial.print(S);
 #define dbgOut2(S,P) \
-Serial.print(S,P); 
+  Serial.print(S,P);
 #define dbgOutLn(S) \
-Serial.println(S); 
+  Serial.println(S);
 #define dbgOutLn2(S,P) \
-Serial.println(S,P); 
+  Serial.println(S,P);
 #define initDebug() \
   Serial.begin(4800); \
   Serial.flush(); \
