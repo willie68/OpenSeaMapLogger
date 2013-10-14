@@ -18,6 +18,8 @@
 
   Modified 28 September 2010 by Mark Sproul
   Modified 14 August 2012 by Alarus
+  Modified 14 October 2013 by Wilfried Klaas
+  - separate buffer sizes for input/output
 */
 
 #ifndef HardwareSerial_h
@@ -32,8 +34,7 @@ struct ring_buffer;
 class HardwareSerial : public Stream
 {
   private:
-    ring_buffer *_rx_buffer;
-    ring_buffer *_tx_buffer;
+    ring_buffer *_buffer;
     volatile uint8_t *_ubrrh;
     volatile uint8_t *_ubrrl;
     volatile uint8_t *_ucsra;
@@ -47,7 +48,7 @@ class HardwareSerial : public Stream
     uint8_t _u2x;
     bool transmitting;
   public:
-    HardwareSerial(ring_buffer *rx_buffer, ring_buffer *tx_buffer,
+    HardwareSerial(ring_buffer *buffer, 
       volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
       volatile uint8_t *ucsra, volatile uint8_t *ucsrb,
       volatile uint8_t *ucsrc, volatile uint8_t *udr,
