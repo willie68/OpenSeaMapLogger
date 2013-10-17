@@ -55,53 +55,79 @@
 // using a ring buffer (I think), in which head is the index of the location
 // to which to write the next incoming character and tail is the index of the
 // location from which to read.
+// WKLA: The N constant are defining the length of the 9'th bit array should be
+// BUFFER_SIZE / 8 and than the next full byte.
+// 8 -> 1
+// 9 -> 2
+// 16 -> 2
+// 32 -> 4
 #if (RAMEND < 1000)
   #define SERIAL_RX_BUFFER_SIZE 16
   #define SERIAL_TX_BUFFER_SIZE 16
+  #define SERIAL_NRX_BUFFER_SIZE 2
+  #define SERIAL_NTX_BUFFER_SIZE 2
 #else
 // changing the buffer to a greater value.
-  #define SERIAL_RX_BUFFER_SIZE 384
-  #define SERIAL_TX_BUFFER_SIZE 64
+/*  #define SERIAL_RX_BUFFER_SIZE 256
+  #define SERIAL_NRX_BUFFER_SIZE 32
+*/
+  #define SERIAL_RX_BUFFER_SIZE 196
+  #define SERIAL_NRX_BUFFER_SIZE 24
+  #define SERIAL_TX_BUFFER_SIZE 16
+  #define SERIAL_NTX_BUFFER_SIZE 2
 #endif
+
+#define getOffset(position) position % 8;
+#define getIndex(position) position / 8;
+
 
 struct ring_buffer
 {
   unsigned char rx_buffer[SERIAL_RX_BUFFER_SIZE];
+  unsigned char nrx_buffer[SERIAL_NRX_BUFFER_SIZE];
   volatile unsigned int rx_head;
   volatile unsigned int rx_tail;
 
   unsigned char tx_buffer[SERIAL_TX_BUFFER_SIZE];
+  unsigned char ntx_buffer[SERIAL_NTX_BUFFER_SIZE];
   volatile unsigned int tx_head;
   volatile unsigned int tx_tail;
 };
 
 #if defined(USBCON)
-  ring_buffer buffer = { { 0 }, 0, 0, { 0 }, 0, 0};
+  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
 #endif
 #if defined(UBRRH) || defined(UBRR0H)
-  ring_buffer buffer = { { 0 }, 0, 0, { 0 }, 0, 0};
+  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
 #endif
 #if defined(UBRR1H)
-  ring_buffer buffer1 = { { 0 }, 0, 0, { 0 }, 0, 0};
+  ring_buffer buffer1 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
 #endif
 #if defined(UBRR2H)
-  ring_buffer buffer2 = { { 0 }, 0, 0, { 0 }, 0, 0};
+  ring_buffer buffer2 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
 #endif
 #if defined(UBRR3H)
-  ring_buffer buffer3 = { { 0 }, 0, 0, { 0 }, 0, 0};
+  ring_buffer buffer3 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
 #endif
 
-inline void store_char(unsigned char c, ring_buffer *buffer)
+inline void store_char(unsigned char c, unsigned char nb, ring_buffer *buffer)
 {
-  int i = (unsigned int)(buffer->rx_head + 1) % SERIAL_RX_BUFFER_SIZE;
+  unsigned int i = (unsigned int)(buffer->rx_head + 1) % SERIAL_RX_BUFFER_SIZE;
 
   // if we should be storing the received character into the location
   // just before the tail (meaning that the head would advance to the
   // current location of the tail), we're about to overflow the buffer
   // and so we don't write the character or advance the head.
   if (i != buffer->rx_tail) {
+    unsigned char index = getIndex(buffer->rx_head);
+    unsigned char offset = getOffset(buffer->rx_head);
     buffer->rx_buffer[buffer->rx_head] = c;
-    buffer->rx_head = i;
+	if (nb > 0) {
+      buffer->nrx_buffer[index] |= _BV(offset); 
+	} else {
+      buffer->nrx_buffer[index] &= ~_BV(offset);
+	}
+	buffer->rx_head = i;
   }
 }
 
@@ -125,15 +151,17 @@ inline void store_char(unsigned char c, ring_buffer *buffer)
   {
   #if defined(UDR0)
     if (bit_is_clear(UCSR0A, UPE0)) {
-      unsigned char c = UDR0;
-      store_char(c, &buffer);
+	  unsigned char nb = UCSR0B & 0x02;
+	  unsigned char c = UDR0;
+      store_char(c, nb, &buffer);
     } else {
       unsigned char c = UDR0;
     };
   #elif defined(UDR)
     if (bit_is_clear(UCSRA, PE)) {
+	  unsigned char nb = UCSRB & 0x02;
       unsigned char c = UDR;
-      store_char(c, &buffer);
+      store_char(c, nb, &buffer);
     } else {
       unsigned char c = UDR;
     };
@@ -151,8 +179,9 @@ inline void store_char(unsigned char c, ring_buffer *buffer)
   ISR(USART1_RX_vect)
   {
     if (bit_is_clear(UCSR1A, UPE1)) {
+      unsigned char nb = UCSR1B & 0x02;
       unsigned char c = UDR1;
-      store_char(c, &buffer1);
+      store_char(c, nb, &buffer1);
     } else {
       unsigned char c = UDR1;
     };
@@ -166,8 +195,9 @@ inline void store_char(unsigned char c, ring_buffer *buffer)
   ISR(USART2_RX_vect)
   {
     if (bit_is_clear(UCSR2A, UPE2)) {
+	  unsigned char nb = UCSR2B & 0x02;
       unsigned char c = UDR2;
-      store_char(c, &buffer2);
+      store_char(c, nb, &buffer2);
     } else {
       unsigned char c = UDR2;
     };
@@ -181,8 +211,9 @@ inline void store_char(unsigned char c, ring_buffer *buffer)
   ISR(USART3_RX_vect)
   {
     if (bit_is_clear(UCSR3A, UPE3)) {
+	  unsigned char nb = UCSR3B & 0x02;
       unsigned char c = UDR3;
-      store_char(c, &buffer3);
+      store_char(c, nb, &buffer3);
     } else {
       unsigned char c = UDR3;
     };
@@ -232,12 +263,21 @@ ISR(USART_UDRE_vect)
   }
   else {
     // There is more data in the output buffer. Send the next byte
+    unsigned char index = getIndex(buffer.tx_tail);
+    unsigned char offset = getOffset(buffer.tx_tail);
+	unsigned char nb = buffer.ntx_buffer[index] & _BV(offset);
     unsigned char c = buffer.tx_buffer[buffer.tx_tail];
     buffer.tx_tail = (buffer.tx_tail + 1) % SERIAL_TX_BUFFER_SIZE;
 	
   #if defined(UDR0)
+    UCSR0B &= ~(1<<TXB80);
+    if ( nb > 0 )
+      UCSR0B |= (1<<TXB80);
     UDR0 = c;
   #elif defined(UDR)
+    UCSRB &= ~(1<<TXB8);
+    if ( nb > 0)
+      UCSRB |= (1<<TXB8);
     UDR = c;
   #else
     #error UDR not defined
@@ -256,9 +296,16 @@ ISR(USART1_UDRE_vect)
   }
   else {
     // There is more data in the output buffer. Send the next byte
+    unsigned char index = getIndex(buffer1.tx_tail);
+    unsigned char offset = getOffset(buffer1.tx_tail);
+
+	unsigned char nb = buffer1.ntx_buffer[index] & _BV(offset);
     unsigned char c = buffer1.tx_buffer[buffer1.tx_tail];
     buffer1.tx_tail = (buffer1.tx_tail + 1) % SERIAL_TX_BUFFER_SIZE;
 	
+    UCSR1B &= ~(1<<TXB81);
+    if ( nb > 0)
+      UCSR1B |= (1<<TXB81);
     UDR1 = c;
   }
 }
@@ -273,9 +320,15 @@ ISR(USART2_UDRE_vect)
   }
   else {
     // There is more data in the output buffer. Send the next byte
+    unsigned char index = getIndex(buffer2.tx_tail);
+    unsigned char offset = getOffset(buffer2.tx_tail);
+	unsigned char nb = buffer2.ntx_buffer[index] & _BV(offset);
     unsigned char c = buffer2.tx_buffer[buffer2.tx_tail];
     buffer2.tx_tail = (buffer2.tx_tail + 1) % SERIAL_TX_BUFFER_SIZE;
 	
+    UCSR2B &= ~(1<<TXB82);
+    if ( nb > 0)
+      UCSR2B |= (1<<TXB82);
     UDR2 = c;
   }
 }
@@ -290,9 +343,15 @@ ISR(USART3_UDRE_vect)
   }
   else {
     // There is more data in the output buffer. Send the next byte
+    unsigned char index = getIndex(buffer3.tx_tail);
+    unsigned char offset = getOffset(buffer3.tx_tail);
+	unsigned char nb = buffer3.ntx_buffer[index] & _BV(offset);
     unsigned char c = buffer3.tx_buffer[buffer3.tx_tail];
     buffer3.tail = (buffer3.tx_tail + 1) % SERIAL_TX_BUFFER_SIZE;
 	
+    UCSR3B &= ~(1<<TXB83);
+    if ( nb > 0)
+      UCSR3B |= (1<<TXB83);
     UDR3 = c;
   }
 }
@@ -319,7 +378,32 @@ HardwareSerial::HardwareSerial(ring_buffer *buffer,
   _rxcie = rxcie;
   _udrie = udrie;
   _u2x = u2x;
+  
+  initBuffer();
 }
+
+// Private Methods //////////////////////////////////////////////////////////////
+
+void HardwareSerial::initBuffer()
+{
+  for(int i = 0; i < SERIAL_RX_BUFFER_SIZE; i++) 
+	_buffer->rx_buffer[i] = 0;
+	
+  for(int i = 0; i < SERIAL_NRX_BUFFER_SIZE; i++) 
+	_buffer->nrx_buffer[i] = 0;
+
+  for(int i = 0; i < SERIAL_TX_BUFFER_SIZE; i++) 
+	_buffer->tx_buffer[i] = 0;
+
+  for(int i = 0; i < SERIAL_NTX_BUFFER_SIZE; i++) 
+	_buffer->ntx_buffer[i] = 0;
+
+  _buffer->rx_head = 0;
+  _buffer->rx_tail = 0;
+  _buffer->tx_head = 0;
+  _buffer->tx_tail = 0;
+
+  }
 
 // Public Methods //////////////////////////////////////////////////////////////
 
@@ -327,7 +411,8 @@ void HardwareSerial::begin(unsigned long baud)
 {
   uint16_t baud_setting;
   bool use_u2x = true;
-
+  _nineBitMode = false;
+  
 #if F_CPU == 16000000UL
   // hardcoded exception for compatibility with the bootloader shipped
   // with the Duemilanove and previous boards and the firmware on the 8U2
@@ -368,8 +453,9 @@ try_again:
 void HardwareSerial::begin(unsigned long baud, byte config)
 {
   uint16_t baud_setting;
-  uint8_t current_config;
+  //uint8_t current_config;
   bool use_u2x = true;
+  _nineBitMode = config & 0x01;
 
 #if F_CPU == 16000000UL
   // hardcoded exception for compatibility with the bootloader shipped
@@ -404,8 +490,13 @@ try_again:
 #if defined(__AVR_ATmega8__)
   config |= 0x80; // select UCSRC register (shared with UBRRH)
 #endif
-  *_ucsrc = config;
-  
+  *_ucsrc = config & 0xFE;
+
+  // setting up 9'th bit
+  *_ucsrb &= ~_BV(2);
+  if (config & 0x01) 
+    *_ucsrb |= _BV(2);
+
   sbi(*_ucsrb, _rxen);
   sbi(*_ucsrb, _txen);
   sbi(*_ucsrb, _rxcie);
@@ -437,7 +528,16 @@ int HardwareSerial::peek(void)
   if (_buffer->rx_head == _buffer->rx_tail) {
     return -1;
   } else {
-    return _buffer->rx_buffer[_buffer->rx_tail];
+    int c = _buffer->rx_buffer[_buffer->rx_tail];
+    if (_nineBitMode) {
+      unsigned char index = getIndex(_buffer->rx_tail);
+      unsigned char offset = getOffset(_buffer->rx_tail);
+	  unsigned char nb = _buffer->rx_buffer[index] & (1<<(offset));
+	  if ( nb > 0) {
+	    c |= _BV(9);
+	  }
+	}
+    return c;
   }
 }
 
@@ -447,7 +547,15 @@ int HardwareSerial::read(void)
   if (_buffer->rx_head == _buffer->rx_tail) {
     return -1;
   } else {
-    unsigned char c = _buffer->rx_buffer[_buffer->rx_tail];
+    int c = _buffer->rx_buffer[_buffer->rx_tail];
+    if (_nineBitMode) {
+      unsigned char index = getIndex(_buffer->rx_tail);
+      unsigned char offset = getOffset(_buffer->rx_tail);
+	  unsigned char nb = _buffer->rx_buffer[index] & (1<<(offset));
+      if ( nb > 0) {
+	    c |= _BV(9);
+	  }
+	}
     _buffer->rx_tail = (unsigned int)(_buffer->rx_tail + 1) % SERIAL_RX_BUFFER_SIZE;
     return c;
   }
@@ -460,17 +568,25 @@ void HardwareSerial::flush()
   transmitting = false;
 }
 
-size_t HardwareSerial::write(uint8_t c)
+size_t HardwareSerial::write(int c)
 {
-  int i = (_buffer->tx_head + 1) % SERIAL_TX_BUFFER_SIZE;
-	
+  unsigned int i = (_buffer->tx_head + 1) % SERIAL_TX_BUFFER_SIZE;
+
   // If the output buffer is full, there's nothing for it other than to 
   // wait for the interrupt handler to empty it a bit
   // ???: return 0 here instead?
   while (i == _buffer->tx_tail)
     ;
-	
-  _buffer->tx_buffer[_buffer->tx_head] = c;
+  if (_nineBitMode) {
+    unsigned char index = getIndex(_buffer->tx_head);
+    unsigned char offset = getOffset(_buffer->tx_head);
+
+    _buffer->ntx_buffer[index] &= ~_BV(offset);
+    if (c & 0x0100) {
+      _buffer->ntx_buffer[index] |= _BV(offset);
+    }
+  }
+  _buffer->tx_buffer[_buffer->tx_head] = lowByte(c);
   _buffer->tx_head = i;
 	
   sbi(*_ucsrb, _udrie);

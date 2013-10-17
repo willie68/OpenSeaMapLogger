@@ -2,7 +2,7 @@ osmlogger.name=OpenSeaMap Data Logger w/ ATmega328
 
 osmlogger.upload.protocol=arduino
 osmlogger.upload.maximum_size=30720
-osmlogger.upload.speed=57600
+osmlogger.upload.speed=115200
 
 osmlogger.bootloader.low_fuses=0xFF
 osmlogger.bootloader.high_fuses=0xDA

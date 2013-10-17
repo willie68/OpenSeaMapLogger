@@ -47,6 +47,8 @@ class HardwareSerial : public Stream
     uint8_t _udrie;
     uint8_t _u2x;
     bool transmitting;
+	bool _nineBitMode;
+	void initBuffer();
   public:
     HardwareSerial(ring_buffer *buffer, 
       volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
@@ -60,11 +62,11 @@ class HardwareSerial : public Stream
     virtual int peek(void);
     virtual int read(void);
     virtual void flush(void);
-    virtual size_t write(uint8_t);
-    inline size_t write(unsigned long n) { return write((uint8_t)n); }
-    inline size_t write(long n) { return write((uint8_t)n); }
-    inline size_t write(unsigned int n) { return write((uint8_t)n); }
-    inline size_t write(int n) { return write((uint8_t)n); }
+    virtual size_t write(int);
+    inline size_t write(unsigned long n) { return write((int)n); }
+    inline size_t write(long n) { return write((int)n); }
+    inline size_t write(unsigned int n) { return write((int)n); }
+    inline size_t write(uint8_t n) { return write((int)n); }
     using Print::write; // pull in write(str) and write(buf, size) from Print
     operator bool();
 };
@@ -74,33 +76,41 @@ class HardwareSerial : public Stream
 #define SERIAL_6N1 0x02
 #define SERIAL_7N1 0x04
 #define SERIAL_8N1 0x06
+#define SERIAL_9N1 0x07   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
 #define SERIAL_5N2 0x08
 #define SERIAL_6N2 0x0A
 #define SERIAL_7N2 0x0C
 #define SERIAL_8N2 0x0E
+#define SERIAL_9N2 0x0F   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
 #define SERIAL_5E1 0x20
 #define SERIAL_6E1 0x22
 #define SERIAL_7E1 0x24
 #define SERIAL_8E1 0x26
+#define SERIAL_9E1 0x27   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
 #define SERIAL_5E2 0x28
 #define SERIAL_6E2 0x2A
 #define SERIAL_7E2 0x2C
 #define SERIAL_8E2 0x2E
+#define SERIAL_9E2 0x2F   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
 #define SERIAL_5O1 0x30
 #define SERIAL_6O1 0x32
 #define SERIAL_7O1 0x34
 #define SERIAL_8O1 0x36
+#define SERIAL_9O1 0x37   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
 #define SERIAL_5O2 0x38
 #define SERIAL_6O2 0x3A
 #define SERIAL_7O2 0x3C
 #define SERIAL_8O2 0x3E
+#define SERIAL_9O2 0x3F   // the lsb is used for the definition of the UCSZn2 in the UCSRnB
+
 
 #if defined(UBRRH) || defined(UBRR0H)
   extern HardwareSerial Serial;
 #elif defined(USBCON)
   #include "USBAPI.h"
-//  extern HardwareSerial Serial_;  
+  extern HardwareSerial Serial_;  
 #endif
+
 #if defined(UBRR1H)
   extern HardwareSerial Serial1;
 #endif

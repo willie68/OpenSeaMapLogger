@@ -1,17 +1,43 @@
+#include <MemoryFree.h>
+#include <avr/pgmspace.h>
+
 //#include <SoftwareSerial.h>
 const byte NMEA_B_RX = 8;
 const byte NMEA_B_TX = 9;
+
+/*
+const char* START_MESSAGE = "POSMST,Start NMEA Logger,V 0.0.3";
+const char* GYRO_MESSAGE = "POSMGYR,%i, %i, %i";
+*/
+#define GYRO_MESSAGE PSTR("POSMGYR,%i, %i, %i") 
 
 //SoftwareSerial mySerial(NMEA_B_RX, NMEA_B_TX);
 
 void setup() {
   // put your setup code here, to run once:
+  int16_t ax = 1234;
+  int16_t ay = 23456;
+  int16_t az = 3456;
+  
   Serial.begin(4800, SERIAL_8N1);
-  Serial.println("Hello");
+  outputFree();
+  Serial.println(F("OpenSeaMap Datalogger"));
+  outputFree();
+  char data[80];
+  strcpy_P(data, PSTR("POSMST,Start NMEA Logger,V 0.0.3"));
+  Serial.println(data);
+  sprintf_P(data, GYRO_MESSAGE, ax, ay, az); 
+  Serial.println(data);
+  outputFree();
 
 //  mySerial.begin(4800);
 //  mySerial.println("Hello");
 
+}
+
+void outputFree() {
+    Serial.print("RAM:");
+    Serial.println(freeMemory());
 }
 
 void loop() {
