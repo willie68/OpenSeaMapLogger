@@ -1,7 +1,7 @@
 //#define outputVcc
-//#define outputGyro
+#define outputGyro
 #define debug
-#define simulation
+//#define simulation
 
 #ifdef debug
 #include <MemoryFree.h>
@@ -71,6 +71,7 @@
 #define GYRO_MESSAGE PSTR("POSMGYR,%i, %i, %i")
 #define ACC_MESSAGE PSTR("POSMACC,%i, %i, %i")
 #define TIMESTAMP PSTR("%02d:%02d:%02d.%03u: ")
+#define SEATALK_NMEA_MESSAGE PSTR("POSMSK,")
 #define MAX_NMEA_BUFFER 80
 
 #ifdef debug
@@ -408,13 +409,14 @@ void newFile() {
       break;                        // leave the loop after finding new filename
     }
   }
-  strcpy(linedata, START_MESSAGE);
+  strcpy_P(linedata, START_MESSAGE);
+  dbgOutLn(F("Start"));
   writeData(millis(), linedata);          // write data to card
 }
 
 void stopLogger() {
   dbgOutLn(F("close datafile."));
-  strcpy(linedata, STOP_MESSAGE);
+  strcpy_P(linedata, STOP_MESSAGE);
   writeData(millis(), linedata);  // write data to card
   if (dataFile) {
     dataFile.flush();
@@ -444,31 +446,65 @@ void testFirstSerial() {
   }
 }
 
-byte seatalkCommand, attribute, dataLength;
+byte dataLength;
 
 void SeaTalkInputA(int incomingByte) {
-  switch (index_a) {
-  case 0:
-    seatalkCommand = incomingByte;
-    break;
-  case 1:
-    attribute = incomingByte;
-    dataLength = 3+ (attribute & 0x0F);
-    break;
-  case 2:
-  default:
-    break;
+  if ((incomingByte & 0x0100) > 0) {
+    writeDatagramm();
+    index_a = 0;
+    start_a = millis();
   }
-  buffer_a[index_a] = (byte) incomingByte;
-  index_a++;
-  if (index_a >= dataLength) {
+  if (index_a == 1) {
+    dataLength = 3 + (incomingByte & 0x0F);
+  }
+  if (index_a < MAX_NMEA_BUFFER) {
+    buffer_a[index_a] = (byte) incomingByte;
+    index_a++;
+  }
+}
+
+void strcat(char* original, char appended)
+{
+    while (*original++)
+    ;
+    *original--;
+    *original = appended;
+    *original++;
+    *original = '\0';
+}
+
+inline void writeDatagramm() {
+  if (index_a == dataLength) {
+/*
     if (dataFile) {
       writeLEDOn();
       writeTimeStamp(start_a);
-      dataFile.write(buffer_a, index_a-1);
+*/
+      dbgOutLn(SEATALK_NMEA_MESSAGE);
+      strcpy(linedata,SEATALK_NMEA_MESSAGE); 
+
+      for (byte i = 0; i < index_a; i++) {
+        byte value = buffer_a[i];
+        byte c = (value & 0xF0) >> 4;
+        strcat(linedata, convertNibble2Hex(c));
+        c = value & 0x0F;
+        strcat(linedata, convertNibble2Hex(c));
+      }
+      writeData(start_a, linedata);
+
+/*
+      dataFile.print(SEATALK_NMEA_MESSAGE);
+      for (byte i = 0; i < index_a; i++) {
+        byte value = buffer_a[i];
+        byte c = (value & 0xF0) >> 4;
+        dataFile.write(convertNibble2Hex(c));
+        c = value & 0x0F;
+        dataFile.write(convertNibble2Hex(c));
+      }
       dataFile.println();
       writeLEDOff();
     }
+*/
     index_a = 0;    
   }
 }
@@ -492,7 +528,12 @@ void NMEAInputA(int incomingByte) {
         Serial.print('B');
       }
       Serial.print(F("A:"));
-      Serial.write(buffer_a, index_a);
+      if (index_a > 6) {
+        Serial.write(buffer_a, 6);
+      } 
+      else {
+        Serial.write(buffer_a, index_a);
+      }
       Serial.println();
 #endif
       if (dataFile) {
@@ -520,28 +561,49 @@ void testSecondSerial() {
         }
         PORTD |=_BV(LED_RX_B);
         lastB = millis();
-        if ((incomingByte != 0x0A) && (incomingByte != 0x0D)) {
-          buffer_b[index_b] = (byte) incomingByte;
-          index_b++;
-        }
-        if (((incomingByte == 0x0A) || (incomingByte == 0x0D) || (index_b >= MAX_NMEA_BUFFER)) && (index_b > 0)) {
-#ifdef debug
-          dbgOut(F("B:"));
-          Serial.write(buffer_b, index_b);
-          Serial.println();
-#endif
-          if (dataFile) {
-            writeLEDOn();
-            writeTimeStamp(start_b);
-            dataFile.write(buffer_b, index_b);
-            dataFile.println();
-            writeLEDOff();
-          }
-          index_b = 0;
-        } 
+        NMEAInputB(incomingByte);
       }
     }
   }
+}
+
+void NMEAInputB(int incomingByte) {
+  byte in = lowByte(incomingByte);
+  boolean ending = false;
+  if (in == 0x0A) {
+    ending = true;
+  } 
+  else {
+    if (in != 0x0D) {
+      buffer_b[index_b] = (byte) in;
+      index_b++;
+    }
+  }
+  if (ending || (index_b >= MAX_NMEA_BUFFER)) {
+    if (index_b > 0) {
+#ifdef debug
+      if (index_b >= MAX_NMEA_BUFFER) {
+        Serial.print('B');
+      }
+      Serial.print(F("B:"));
+      if (index_b > 6) {
+        Serial.write(buffer_b, 6);
+      } 
+      else {
+        Serial.write(buffer_b, index_b);
+      }
+      Serial.println();
+#endif
+      if (dataFile) {
+        writeLEDOn();
+        writeTimeStamp(start_b);
+        dataFile.write(buffer_b, index_b);
+        dataFile.println();
+        writeLEDOff();
+      }
+      index_b = 0;
+    }
+  } 
 }
 
 void writeData(unsigned long startTime, char* data) {
@@ -589,5 +651,4 @@ void writeNMEAData(char* data) {
 #endif
   writeLEDOff();
 }
-
 

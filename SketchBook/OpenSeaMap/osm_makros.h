@@ -18,4 +18,5 @@
 */
 
 #define between(a,x,y) ((a >=x) && (a <= y))
+#define convertNibble2Hex(c)  (c < 10 ? c + '0' : c + 'A' - 10)
 
