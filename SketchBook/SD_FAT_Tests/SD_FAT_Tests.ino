@@ -20,13 +20,19 @@
  
  */
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 
 // On the Ethernet Shield, CS is pin 4. Note that even if it's not
 // used as the CS pin, the hardware CS pin (10 on most Arduino boards,
 // 53 on the Mega) must be left as an output or the SD library
 // functions will not work.
 const int chipSelect = 10;
+
+SdFat sd;
+SdFile myFile;
+
+char buf[80];
+
 
 void setup()
 {
@@ -43,7 +49,8 @@ void setup()
   pinMode(10, OUTPUT);
 
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
+    sd.initErrorHalt();
     Serial.println(F("Card failed, or not present"));
     // don't do anything more:
     return;
@@ -52,26 +59,22 @@ void setup()
 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  File dataFile = SD.open("test.txt",FILE_WRITE);
-  // if the file is available, write to it:
-  if (dataFile) {
-    dataFile.print(F("\r\neine Möhre für 2"));
-    dataFile.flush();
-    dataFile.close();
-
-/*
-   dataFile = SD.open("1/test.txt",FILE_READ);
-    while (dataFile.available()) {
-      Serial.write(dataFile.read());
-    }
-    Serial.write(dataFile.name());
-    dataFile.close();
-
-*/
-  Serial.println(F("write ok test.txt"));
-  }  
-// if the file isn't open, pop up an error:
-  else {
+  if (myFile.open("test.txt", O_RDWR | O_CREAT | O_AT_END)) {
+    //sd.errorHalt(F("opening test.txt for write failed"));
+    // if the file is available, write to it:
+    myFile.println(F("\r\neine Möhre für 2"));
+    myFile.close();
+    /*
+    dataFile = SD.open("1/test.txt",FILE_READ);
+     while (dataFile.available()) {
+     Serial.write(dataFile.read());
+     }
+     Serial.write(dataFile.name());
+     dataFile.close();
+     */
+    Serial.println(F("write ok test.txt"));
+  } 
+  else {    
     Serial.println(F("error opening test.txt"));
   }
 }
@@ -82,17 +85,17 @@ void loop()
 }
 
 #define print2Dec(value, stream) \
-  if (value < 10) {\
-    stream.print("0");\
+if (value < 10) {  \
+    stream.print("0");  \
   }\
   stream.print(value);\
 
 #define print3Dec(value, stream) \
-  if (value < 100) {\
-    stream.print("0");\
+if (value < 100) {  \
+    stream.print("0");  \
   }\
-  if (value < 10) {\
-    stream.print("0");\
+  if (value < 10) {  \
+    stream.print("0");  \
   }\
   stream.print(value);\
 
@@ -113,4 +116,5 @@ void writeTimeStamp(unsigned long time) {
   Serial.print(".");
   print3Dec(mil, Serial);
 }
+
 

@@ -29,11 +29,31 @@
 
 #include "Stream.h"
 
+// Define constants and variables for buffering incoming serial data.  We're
+// using a ring buffer (I think), in which head is the index of the location
+// to which to write the next incoming character and tail is the index of the
+// location from which to read.
+#if (RAMEND < 1000)
+  #define SERIAL_RX_BUFFER_SIZE 16
+  #define SERIAL_TX_BUFFER_SIZE 16
+  #define SERIAL_NRX_BUFFER_SIZE 2
+  #define SERIAL_NTX_BUFFER_SIZE 2
+#else
+// changing the buffer to a greater value.
+/*  #define SERIAL_RX_BUFFER_SIZE 256
+  #define SERIAL_NRX_BUFFER_SIZE 32
+*/
+  #define SERIAL_RX_BUFFER_SIZE 128
+  #define SERIAL_NRX_BUFFER_SIZE 16
+  #define SERIAL_TX_BUFFER_SIZE 16
+  #define SERIAL_NTX_BUFFER_SIZE 2
+#endif
+
 struct ring_buffer;
 
 class HardwareSerial : public Stream
 {
-  private:
+  protected:
     ring_buffer *_buffer;
     volatile uint8_t *_ubrrh;
     volatile uint8_t *_ubrrl;
@@ -50,7 +70,12 @@ class HardwareSerial : public Stream
 	bool _nineBitMode;
 	void initBuffer();
   public:
-    HardwareSerial(ring_buffer *buffer, 
+    volatile uint8_t _rx_buffer_head;
+    volatile uint8_t _rx_buffer_tail;
+    volatile uint8_t _tx_buffer_head;
+    volatile uint8_t _tx_buffer_tail;
+
+    HardwareSerial(ring_buffer *buffer,
       volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
       volatile uint8_t *ucsra, volatile uint8_t *ucsrb,
       volatile uint8_t *ucsrc, volatile uint8_t *udr,
@@ -110,7 +135,6 @@ class HardwareSerial : public Stream
   #include "USBAPI.h"
 //  extern HardwareSerial Serial_;  
 #endif
-
 #if defined(UBRR1H)
   extern HardwareSerial Serial1;
 #endif
