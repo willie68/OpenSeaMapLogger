@@ -66,22 +66,24 @@ struct ring_buffer
   unsigned char ntx_buffer[SERIAL_NTX_BUFFER_SIZE];
   volatile unsigned int tx_head;
   volatile unsigned int tx_tail;
+  
+  volatile bool overflow;
 };
 
 #if defined(USBCON)
-  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
+  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0, false};
 #endif
 #if defined(UBRRH) || defined(UBRR0H)
-  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
+  ring_buffer buffer = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0, false};
 #endif
 #if defined(UBRR1H)
-  ring_buffer buffer1 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
+  ring_buffer buffer1 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0, false};
 #endif
 #if defined(UBRR2H)
-  ring_buffer buffer2 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
+  ring_buffer buffer2 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0, false};
 #endif
 #if defined(UBRR3H)
-  ring_buffer buffer3 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0};
+  ring_buffer buffer3 = { { 0 }, { 0 }, 0, 0, { 0 }, { 0 }, 0, 0, false};
 #endif
 
 inline void store_char(unsigned char c, unsigned char nb, ring_buffer *buffer)
@@ -102,6 +104,8 @@ inline void store_char(unsigned char c, unsigned char nb, ring_buffer *buffer)
       buffer->nrx_buffer[index] &= ~_BV(offset);
 	}
 	buffer->rx_head = i;
+  } else {
+    buffer->overflow = true;
   }
 }
 
@@ -376,7 +380,8 @@ void HardwareSerial::initBuffer()
   _buffer->rx_tail = 0;
   _buffer->tx_head = 0;
   _buffer->tx_tail = 0;
-
+  _buffer->overflow = false;
+  
   }
 
 // Public Methods //////////////////////////////////////////////////////////////
@@ -497,6 +502,11 @@ int HardwareSerial::available(void)
   return (unsigned int)(SERIAL_RX_BUFFER_SIZE + _buffer->rx_head - _buffer->rx_tail) % SERIAL_RX_BUFFER_SIZE;
 }
 
+bool HardwareSerial::overflow(void)
+{
+  return _buffer->overflow;
+}
+
 int HardwareSerial::peek(void)
 {
   if (_buffer->rx_head == _buffer->rx_tail) {
@@ -531,6 +541,7 @@ int HardwareSerial::read(void)
 	  }
 	}
     _buffer->rx_tail = (unsigned int)(_buffer->rx_tail + 1) % SERIAL_RX_BUFFER_SIZE;
+    _buffer->overflow = false;
     return c;
   }
 }

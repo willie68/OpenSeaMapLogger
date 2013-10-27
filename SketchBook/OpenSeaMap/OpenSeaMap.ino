@@ -1,24 +1,29 @@
-//#define outputVcc
+#define outputVcc
 #define outputGyro
 //#define debug
-//#define simulation
 //#define freemem
+//#define noWrite
 
 #ifdef freemem
 #include <MemoryFree.h>
 #endif
+
+#ifdef outputGyro
 #include <Wire.h>
 #include <I2Cdev.h>
 #include <MPU6050.h>
+#endif
+
 #include "osm_debug.h"
 #include "osm_makros.h"
 #include "config.h"
-#include <SoftwareSerial.h>
+#include <AltSoftSerial.h>
+
 #include <SPI.h>
 #include <SdFat.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.0.3
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.2
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,12 +76,12 @@
 // WKLA 20131010
 // - Prüfsumme für Daten eingebaut.
 
-#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.0.3")
+#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.2")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
-#define VCC_MESSAGE PSTR("POSMVCC, %i")
-#define GYRO_MESSAGE PSTR("POSMGYR,%i, %i, %i")
-#define ACC_MESSAGE PSTR("POSMACC,%i, %i, %i")
-#define TIMESTAMP PSTR("%02d:%02d:%02d.%03u: ")
+#define VCC_MESSAGE PSTR("POSMVCC,%i")
+#define GYRO_MESSAGE PSTR("POSMGYR,%i,%i,%i")
+#define ACC_MESSAGE PSTR("POSMACC,%i,%i,%i")
+#define TIMESTAMP PSTR("%02d:%02d:%02d.%03u;")
 #define SEATALK_NMEA_MESSAGE PSTR("POSMSK,")
 #define MAX_NMEA_BUFFER 80
 
@@ -96,11 +101,13 @@ boolean firstSerial = true;
 boolean secondSerial = true;
 
 // Port for NMEA B, NMEA A is the normal Serial connection
-SoftwareSerial mySerial(NMEA_B_RX, NMEA_B_TX);
+AltSoftSerial mySerial; //(NMEA_B_RX, NMEA_B_TX);
 
 boolean error = false;
 
+#ifdef outputGyro
 MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
+#endif
 
 boolean seatalkActive = false;
 byte buffer_a[MAX_NMEA_BUFFER];
@@ -145,15 +152,15 @@ void setup() {
 
   // see if the card is present and can be initialized:
   dbgOutLn(F("checking SD Card"));
-#ifndef simulation
-  if (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
+
+  while (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
     dbgOutLn(F("Card failed, or not present"));
     //    PORTD ^= _BV(LED_WRITE);
     PORTD ^= (_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
     outputFreeMem('F');
     delay(500);
   }
-#endif
+
   dbgOutLn(F("SD Card ready"));
 
   PORTD ^= _BV(LED_RX_A);
@@ -181,8 +188,10 @@ void setup() {
   // join I2C bus (I2Cdev library doesn't do this automatically)
   dbgOutLn(F("Init I2C"));
   PORTD ^= _BV(LED_RX_B);
-  Wire.begin();
 
+#ifdef outputGyro
+
+  Wire.begin();
   // initialize device
   accelgyro.initialize();
 
@@ -195,6 +204,7 @@ void setup() {
     PORTD &= ~_BV(LED_RX_B);
     dbgOutLn(F("MPU6050 failed"));
   }
+#endif
 }
 
 boolean getParameters() {
@@ -278,7 +288,7 @@ long lastW;
 #ifdef outputVcc
 unsigned long vccTime;
 #endif
-unsigned long start_a, start_b;
+unsigned long now, start_a, start_b;
 char linedata[MAX_NMEA_BUFFER];
 char timedata[15];
 
@@ -308,7 +318,7 @@ void loop() {
 
   // check LED State
   long now = millis();
-  if (now > (lastW + 500)) {
+  if (now > (lastW + 100)) {
     writeLEDOff();
   }
 
@@ -330,9 +340,9 @@ void loop() {
     PORTD &= ~(_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
 
     if (dataFile.isOpen()) {
-#ifdef outputVcc
+  #ifdef outputVcc
       writeVCC();
-#endif
+  #endif
       stopLogger();
       dbgOutLn(F("Shutdown detected, datafile closed"));
     }
@@ -341,17 +351,15 @@ void loop() {
     delay(10000);
   } 
   else {
-#ifndef simulation
     if (!dataFile.isOpen()) {
       newFile();
     }
-#endif
 
     testFirstSerial();
     testSecondSerial();
 
     // der Gyro wird nur jede Sekunde einmal abgefragt
-    long now = millis();
+    //now = millis();
     if ((now - 1000) > lastMillis) {
       outputFreeMem('L');
       lastMillis = now;
@@ -362,7 +370,7 @@ void loop() {
       writeVCC();
 #endif      
       // testing the needing of a new file
-      if ((now % 3600000) > fileCount) {
+      if ((now / 3600000) > fileCount) {
         newFile(); 
         fileCount++;
       }       
@@ -389,35 +397,36 @@ long readVcc() {
 #ifdef outputVcc
 inline void writeVCC() {
   sprintf_P(linedata, VCC_MESSAGE, vcc); 
-  writeData(vccTime, linedata);
+  writeData(vccTime, 'I', linedata);
 }
 #endif
 
+#ifdef outputGyro
 inline void writeGyroData() {
-#ifdef simulation
-  ax = 1234;
-  ay = 2345;
-  az = 3456;
-  gx = 4567;
-  gy = 5678;
-  gz = 6789;
-#else
   accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-#endif
   unsigned long startTime = millis();
 
   sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az); 
-  writeData(startTime, linedata);
+  writeData(startTime, 'I',  linedata);
 
   sprintf_P(linedata, ACC_MESSAGE, gx, gy, gz); 
-  writeData(startTime, linedata);
+  writeData(startTime, 'I', linedata);
 }
+#endif
 
 word lastStartNumber = 0;
 
 // creating a new file with a new filename on the sd card.
 void newFile() {
   stopLogger();
+#ifndef noWrite
+  while (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
+    dbgOutLn(F("Card failed, or not present"));
+    //    PORTD ^= _BV(LED_WRITE);
+    PORTD ^= (_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
+    outputFreeMem('F');
+    delay(500);
+  }
   int t = 0; 
   int h = 0;
   int z = 0;
@@ -437,26 +446,33 @@ void newFile() {
       break;                        // leave the loop after finding new filename
     }
   }
+#endif
   strcpy_P(linedata, START_MESSAGE);
   dbgOutLn(F("Start"));
-  writeData(millis(), linedata);          // write data to card
+  writeData(millis(), 'I', linedata);          // write data to card
 }
 
 void stopLogger() {
   dbgOutLn(F("close datafile."));
   strcpy_P(linedata, STOP_MESSAGE);
-  writeData(millis(), linedata);  // write data to card
+  writeData(millis(), 'I', linedata);  // write data to card
   if (dataFile.isOpen()) {
     dataFile.close();
   }
 }
 
+bool ending1, ending2;
+
 // 1. Schnittstelle abfragen
 void testFirstSerial() {
   if (firstSerial) {
     outputFreeMem('1');
-    bool ending = false;
-    while ((Serial.available()  > 0) && !ending) {
+    ending1 = false;
+    while ((Serial.available()  > 0) && !ending1) {
+//      if (mySerial.overflow()) {
+//        dbgOutLn(F("ovl A"));
+//        PORTD |= _BV(LED_RX_A);
+//      }
       int incomingByte = Serial.read();
       if (incomingByte >= 0) {
         if (index_a == 0) {
@@ -464,10 +480,10 @@ void testFirstSerial() {
         }
         PORTD |= _BV(LED_RX_A);
         if (seatalkActive) {
-          ending = SeaTalkInputA(incomingByte);
+          SeaTalkInputA(incomingByte);
         } 
         else {
-          ending = NMEAInputA(incomingByte);
+          NMEAInputA(incomingByte);
         }
       }
     }
@@ -476,11 +492,10 @@ void testFirstSerial() {
 
 byte dataLength;
 
-bool SeaTalkInputA(int incomingByte) {
-  bool ending = false;
+inline void SeaTalkInputA(int incomingByte) {
   if ((incomingByte & 0x0100) > 0) {
     writeDatagramm();
-    ending = true;
+    ending1 = true;
     index_a = 0;
     start_a = millis();
   }
@@ -491,7 +506,6 @@ bool SeaTalkInputA(int incomingByte) {
     buffer_a[index_a] = (byte) incomingByte;
     index_a++;
   }
-  return ending;
 }
 
 void strcat(char* original, char appended)
@@ -516,16 +530,15 @@ inline void writeDatagramm() {
       c = value & 0x0F;
       strcat(linedata, convertNibble2Hex(c));
     }
-    writeData(start_a, linedata);
+    writeData(start_a, 'A', linedata);
     index_a = 0;    
   }
 }
 
-bool NMEAInputA(int incomingByte) {
+inline void NMEAInputA(int incomingByte) {
   byte in = lowByte(incomingByte);
-  boolean ending = false;
   if (in == 0x0A) {
-    ending = true;
+    ending1 = true;
   } 
   else {
     if (in != 0x0D) {
@@ -533,7 +546,7 @@ bool NMEAInputA(int incomingByte) {
       index_a++;
     }
   }
-  if (ending || (index_a >= MAX_NMEA_BUFFER)) {
+  if (ending1 || (index_a >= MAX_NMEA_BUFFER)) {
     if (index_a > 0) {
 #ifdef debug
       if (index_a >= MAX_NMEA_BUFFER) {
@@ -551,42 +564,42 @@ bool NMEAInputA(int incomingByte) {
       if (dataFile.isOpen()) {
         writeLEDOn();
         writeTimeStamp(start_a);
+        writeChannelMarker('A');
         dataFile.write(buffer_a, index_a);
         dataFile.println();
-//        writeLEDOff();
+        //        writeLEDOff();
       }
       index_a = 0;
     }
   } 
-  return ending;
 }
 
 // 2. Schnittstelle abfragen
 void testSecondSerial() {
   if (secondSerial) {
     outputFreeMem('2');
-    bool ending = false;
-    while ((mySerial.available()  > 0) && !ending) {
-      if (mySerial.overflow()) {
-        dbgOutLn(F("ovl B"));
-      }
+    ending2 = false;
+    while ((mySerial.available()  > 0) && !ending2) {
+//      if (mySerial.overflow()) {
+//        dbgOutLn(F("ovl B"));
+//        PORTD |= _BV(LED_RX_B);
+//      }
       int incomingByte = mySerial.read();
       if (incomingByte >= 0) {
         if (index_b == 0) {
           start_b = millis();
         }
         PORTD |=_BV(LED_RX_B);
-        ending = NMEAInputB(incomingByte);
+        NMEAInputB(incomingByte);
       }
     }
   }
 }
 
-bool NMEAInputB(int incomingByte) {
+inline void NMEAInputB(int incomingByte) {
   byte in = lowByte(incomingByte);
-  boolean ending = false;
   if (in == 0x0A) {
-    ending = true;
+    ending2 = true;
   } 
   else {
     if (in != 0x0D) {
@@ -594,7 +607,7 @@ bool NMEAInputB(int incomingByte) {
       index_b++;
     }
   }
-  if (ending || (index_b >= MAX_NMEA_BUFFER)) {
+  if (ending2 || (index_b >= MAX_NMEA_BUFFER)) {
     if (index_b > 0) {
 #ifdef debug
       if (index_b >= MAX_NMEA_BUFFER) {
@@ -612,18 +625,19 @@ bool NMEAInputB(int incomingByte) {
       if (dataFile.isOpen()) {
         writeLEDOn();
         writeTimeStamp(start_b);
+        writeChannelMarker('B');
         dataFile.write(buffer_b, index_b);
         dataFile.println();
-//        writeLEDOff();
+        //        writeLEDOff();
       }
       index_b = 0;
     }
   } 
-  return ending;
 }
 
-void writeData(unsigned long startTime, char* data) {
+void writeData(unsigned long startTime, char marker, char* data) {
   writeTimeStamp(startTime);
+  writeChannelMarker(marker);
   writeNMEAData(data);
 }
 
@@ -638,6 +652,13 @@ void writeTimeStamp(unsigned long time) {
 
     sprintf_P(timedata, TIMESTAMP, hour, minute, sec, mil); 
     dataFile.print(timedata);
+  }
+}
+
+void writeChannelMarker(char marker) {
+  if (dataFile.isOpen()) {
+    dataFile.print(marker);
+    dataFile.print(';');
   }
 }
 
@@ -666,5 +687,3 @@ void writeNMEAData(char* data) {
   dbgOutLn2(crc,HEX);
 #endif
 }
-
-

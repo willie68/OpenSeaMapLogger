@@ -45,8 +45,8 @@
 */
   #define SERIAL_RX_BUFFER_SIZE 128
   #define SERIAL_NRX_BUFFER_SIZE 16
-  #define SERIAL_TX_BUFFER_SIZE 16
-  #define SERIAL_NTX_BUFFER_SIZE 2
+  #define SERIAL_TX_BUFFER_SIZE 8
+  #define SERIAL_NTX_BUFFER_SIZE 1
 #endif
 
 struct ring_buffer;
@@ -88,6 +88,7 @@ class HardwareSerial : public Stream
     virtual int read(void);
     virtual void flush(void);
     virtual size_t write(int);
+    virtual bool overflow(void);
     inline size_t write(unsigned long n) { return write((int)n); }
     inline size_t write(long n) { return write((int)n); }
     inline size_t write(unsigned int n) { return write((int)n); }
