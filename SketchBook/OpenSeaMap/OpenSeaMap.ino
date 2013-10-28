@@ -22,8 +22,10 @@
 #include <SPI.h>
 #include <SdFat.h>
 
+#include <EEPROM.h>
+
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.2
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.3
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -68,6 +70,10 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131028
+// - EEPROM für Konfiguration
+// WKLA 20131027
+// - Umstellung auf AltSoftSerial
 // WKLA 20131026 
 // - diverse Änderungen wegen Speichervervrauch
 // - 9N1 Protokoll für Seatalk
@@ -76,7 +82,7 @@
 // WKLA 20131010
 // - Prüfsumme für Daten eingebaut.
 
-#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.2")
+#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.3")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
 #define VCC_MESSAGE PSTR("POSMVCC,%i")
 #define GYRO_MESSAGE PSTR("POSMGYR,%i,%i,%i")
@@ -211,6 +217,51 @@ boolean getParameters() {
   dbgOutLn(F("readconf"));
   boolean result = false;
   char filename[11] = "config.dat";
+  byte baud_a = EEPROM.read(EEPROM_BAUD_A);
+  byte baud_b = EEPROM.read(EEPROM_BAUD_A);
+  byte seatalk = EEPROM.read(EEPROM_BAUD_A);
+  
+  if (seatalk < 0x06) {
+    seatalkActive = seatalk > 0;   
+  }
+  if (baud_a < 0x06) {
+      baud_a = BAUDRATES[baud_a];
+#ifdef debug
+      if (seatalkActive) {
+        dbgOut(F("E SK:"));
+      } 
+      else {
+        dbgOut(F("E NA:"));
+      }
+      Serial.println(baud, HEX);
+#endif
+      if (baud_a > 0) {
+        firstSerial = true;
+        Serial.end();
+        if (seatalkActive) {
+          // for seatalk we need another initialisation 
+          Serial.begin(baud_a, SERIAL_9N1);
+        }
+        else {
+          Serial.begin(baud_a, SERIAL_8N1);
+        }              
+     }
+  }
+
+  
+  if (baud_b < 0x04) {
+      baud_b = BAUDRATES[baud_b];
+#ifdef debug
+      dbgOut(F("E NB:"));
+      Serial.println(baud_b, HEX);
+#endif
+      if (baud_b > 0) {
+        secondSerial = true;
+        mySerial.end();
+        mySerial.begin(baud_b);
+      }
+  }
+
   if (sd.exists(filename)) {    // only open a new file if it doesn't exist
     result = true;
     if (dataFile.open(filename, O_RDONLY)) {
@@ -252,7 +303,17 @@ boolean getParameters() {
               }
               else {
                 Serial.begin(baud, SERIAL_8N1);
-              }              
+              }
+            }
+            if (baud != baud_a) {
+              EEPROM.write(EEPROM_BAUD_A, baud);
+            }       
+            if ((seatalk > 0) != seatalkActive) {
+              if (seatalkActive) {
+                 EEPROM.write(EEPROM_BAUD_A, 1);
+              } else {
+                 EEPROM.write(EEPROM_BAUD_A, 0);
+              }
             }
           }
           if (paramCount == 2) {
@@ -266,6 +327,9 @@ boolean getParameters() {
               mySerial.end();
               mySerial.begin(baud);
             }
+            if (baud != baud_b) {
+              EEPROM.write(EEPROM_BAUD_B, baud);
+            }       
           }
         }
       }
