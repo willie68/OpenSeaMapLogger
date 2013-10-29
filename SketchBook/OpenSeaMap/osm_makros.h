@@ -18,5 +18,38 @@
 */
 
 #define between(a,x,y) ((a >=x) && (a <= y))
+
 #define convertNibble2Hex(c)  (c < 10 ? c + '0' : c + 'A' - 10)
+
+#define writeLEDOn() \
+  lastW = millis(); \
+  PORTD |= _BV(LED_WRITE);
+
+#define LEDOn(led) \
+  PORTD |= _BV(led);
+
+#define LEDOff(led) \
+  PORTD &= ~_BV(led);
+
+#define LEDBlink(led) \
+  PORTD ^= _BV(led);
+  
+#define LEDAllOff() \
+  PORTD &= ~(_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
+
+#define LEDAllOn() \ 
+  PORTD |= _BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE); 
+  
+#define LEDAllBlink() \ 
+  PORTD ^= (_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
+  
+#ifdef freemem
+#define outputFreeMem(s) \
+  Serial.print(s); \
+  Serial.print(F(":RAM:")); \
+  Serial.println(freeMemory());
+#else
+#define outputFreeMem(s)
+#endif
+
 
