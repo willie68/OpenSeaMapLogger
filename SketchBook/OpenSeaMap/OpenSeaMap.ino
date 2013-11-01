@@ -71,13 +71,13 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
-// WKLA 20131101
-// - Bug in Config DAtei lesen behoben.
-// WKLA 20131029
+// WKLA 20131101 V0.1.4
+// - Bug in Config Datei lesen behoben.
+// WKLA 20131029 V0.1.3
 // - Testen auf freien Platz
-// WKLA 20131028
+// WKLA 20131028 V0.1.2
 // - EEPROM für Konfiguration
-// WKLA 20131027
+// WKLA 20131027 V0.0.3
 // - Umstellung auf AltSoftSerial
 // WKLA 20131026 
 // - diverse Änderungen wegen Speichervervrauch
