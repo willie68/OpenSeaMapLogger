@@ -1,4 +1,4 @@
-#define outputVcc
+//#define outputVcc
 #define outputGyro
 //#define debug
 //#define freemem
@@ -26,7 +26,7 @@
 #include <EEPROM.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.3
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.4
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,6 +71,8 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131101
+// - Bug in Config DAtei lesen behoben.
 // WKLA 20131029
 // - Testen auf freien Platz
 // WKLA 20131028
@@ -141,8 +143,9 @@ void setup() {
   LEDOn(LED_POWER);
 
   // see if the card is present and can be initialized:
+  delay(1000);
   dbgOutLn(F("checking SD Card"));
-  while (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
+  while (!sd.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present"));
     LEDAllBlink();
     outputFreeMem('F');
@@ -187,18 +190,24 @@ void getParameters() {
   }
 
   if (sd.exists(filename)) {    // only open a new file if it doesn't exist
+    dbgOutLn(F("file exists"));
     if (dataFile.open(filename, O_RDONLY)) {
-      byte paramCount = 0;
+     dbgOutLn(F("file open"));
+      byte paramCount = 1;
       boolean lastCR = false;
       firstSerial = false;
       secondSerial = false;
       while (dataFile.available()) {
         byte readValue = dataFile.read();
+        dbgOut(F("value:"));
+        dbgOut(readValue);
+        dbgOut(F(" pcnt:"));
+        dbgOutLn(paramCount);
         if (readValue == 's') {
           seatalkActive = true;
           readValue = dataFile.read();
         }
-        if ((readValue == 0x13) || (readValue == 0x10)) {
+        if ((readValue == 0x0D) || (readValue == 0x0A)) {
           if (!lastCR) {
             paramCount++;
             lastCR = true;
@@ -208,10 +217,14 @@ void getParameters() {
           lastCR = false;
           if (paramCount == 1) {
             byte baud = readValue - '0';
+            dbgOut(F("A baud readed:"));
+            dbgOutLn(BAUDRATES[baud]);
             if (baud != baud_a) {
+              dbgOutLn(F("EEPROM write A:"));
               EEPROM.write(EEPROM_BAUD_A, baud);
             }       
             if ((seatalk > 0) != seatalkActive) {
+              dbgOutLn(F("EEPROM write SEATALK:"));
               if (seatalkActive) {
                 EEPROM.write(EEPROM_SEATALK, 1);
               } 
@@ -223,7 +236,10 @@ void getParameters() {
           }
           if (paramCount == 2) {
             byte baud = readValue - '0';
+            dbgOut(F("B baud readed:"));
+            dbgOutLn(BAUDRATES[baud]);
             if (baud != baud_b) {
+              dbgOutLn(F("EEPROM write B:"));
               EEPROM.write(EEPROM_BAUD_B, baud);
             }       
             baud_b = baud;
@@ -238,9 +254,9 @@ void getParameters() {
 }
 
 inline void initSerials(byte baud_a, byte baud_b) {
+  dbgOutLn(F("Init Searials"));
   word baud = 0;
   if (baud_a < 0x06) {
-    Serial.end();
   
     baud = BAUDRATES[baud_a];
 
@@ -251,8 +267,10 @@ inline void initSerials(byte baud_a, byte baud_b) {
     else {
       dbgOut(F("E NA:"));
     }
-    Serial.println(baud, HEX);
+    Serial.println(baud, DEC);
 #endif
+
+    Serial.end();
 
     if (baud_a > 0) {
       firstSerial = true;
@@ -273,7 +291,7 @@ inline void initSerials(byte baud_a, byte baud_b) {
 
 #ifdef debug
     dbgOut(F("E NB:"));
-    Serial.println(baud, HEX);
+    Serial.println(baud, DEC);
 #endif
 
     if (baud > 0) {

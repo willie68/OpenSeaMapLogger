@@ -6,7 +6,7 @@ osmlogger.upload.speed=115200
 
 osmlogger.bootloader.low_fuses=0xFF
 osmlogger.bootloader.high_fuses=0xDA
-osmlogger.bootloader.extended_fuses=0x05
+osmlogger.bootloader.extended_fuses=0x04
 osmlogger.bootloader.path=oseam
 osmlogger.bootloader.file=2boots-osm-atmega328p-16000000L-PB2.hex
 osmlogger.bootloader.unlock_bits=0x3F
