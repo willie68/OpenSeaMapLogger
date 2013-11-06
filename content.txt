@@ -1,0 +1,49 @@
+Hardware
+For building the hardware you need an Arduino Uno R3, a sd card adapter, a mpu6050 breadboard pcb, 3 opto coupler circuts. (See schematics in Hardware folder)
+Not all Features of the software can be  used on this development platform. But for testing it's allright.
+
+Software
+The system is build on a arduino ide with version 1.5.x. The needed hardware description for the original board, and all needed libraries are in the sketchbook folder. So you simply have to set the sketchbook in the ide to the checkout sketchbook folder and restart the IDE.
+
+There are several folders and sketches.
+bootloader
+  Here you find the sources of the used bootloader of the OSeaM Board. Its a bootloader for loding new firmware from an fat16 formattet sd card. It's build upon the 2boots bootloader. You will needed a linux system to build the bootloader.
+  
+documentation
+  Here you find some documentation of the hardware logger, like the manual or a short description.
+  
+Hardware
+  All hardwaer related stuff. Schematic, 3D, Images of the Prototyp
+  
+Sketchbook
+  This folder is the sketchbook folder for the arduino IDE. Here you find several sketches
+  
+  Blink
+    a simple Blink programm for the OSeaM Board.
+  
+  hardware
+    hardware definition and core files of the OSeaM board. Due to a bug to the arduino IDE you must copy the bootloader/OSeaM folder to the <arduino>/hardware/arduino/avr/bootloaders folder. (With the OSeaM subfolder)
+	
+  libraries
+    all needed libraries for building the logger.
+
+  OpenSeaMap
+    the main project of the logger
+
+  SD_FAT_Tests
+    testing of the SdFat library
+
+  SD_TESTS
+    testing of the internal arduino sd library (not used in the project due to some bugs...)
+
+  SendSeatalk
+    sending seatalk messages to the logger.
+	
+  SimpleLog
+    sending special formatet messages to a terminal
+  
+  TwoSerialTest
+    Testprogram to test the receiving of bytes from 2 indipendent serial.
+	
+WebConfig
+  This is a simple php webpage for creating a config file for the logger. 
