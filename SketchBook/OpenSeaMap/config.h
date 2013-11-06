@@ -11,6 +11,10 @@ const int BAUDRATES[] = {
 // NMEA 0183 Port B
 const byte NMEA_B_RX = 8;
 const byte NMEA_B_TX = 9;
+
+// Activeating 3V3 Supply
+const byte SUPPLY_3V3 = 2;
+
 // LEDs
 // Write led is PD6
 const byte LED_WRITE = 6; // PD6

@@ -26,7 +26,7 @@
 #include <EEPROM.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.4
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.5
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,6 +71,10 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131107 V0.1.5
+// - Für rev 3 Boards, kann nun die 3V3 Spannungsversorgung geschaltet werden. 
+//   Dieses wird immer beim fehlerhaften Start der SD Karte gemacht. Für rev 2 
+//   und rev 1 Board hat das Verhalten keinen Einfluss.
 // WKLA 20131101 V0.1.4
 // - Bug in Config Datei lesen behoben.
 // WKLA 20131029 V0.1.3
@@ -131,6 +135,10 @@ void setup() {
   pinMode(LED_RX_B, OUTPUT);
   LEDAllOff();
 
+  // Activating 3V3 supply
+  pinMode(SUPPLY_3V3, OUTPUT);
+  LEDOn(SUPPLY_3V3);
+  
   // pins for switches 
   pinMode(SW_STOP, INPUT_PULLUP);
 
@@ -144,12 +152,17 @@ void setup() {
 
   // see if the card is present and can be initialized:
   delay(1000);
+  
   dbgOutLn(F("checking SD Card"));
   while (!sd.begin(SD_CHIPSELECT)) {
-    dbgOutLn(F("Card failed, or not present"));
+    dbgOutLn(F("Card failed, or not present, restarting"));
     LEDAllBlink();
+    LEDOff(SUPPLY_3V3);
     outputFreeMem('F');
     delay(500);
+    LEDAllBlink();
+    LEDOn(SUPPLY_3V3);
+    delay(500);    
   }
   dbgOutLn(F("SD Card ready"));
 
@@ -485,11 +498,15 @@ void newFile() {
   LEDAllOff();
 #ifndef noWrite
   while (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
-    dbgOutLn(F("Card failed, or not present"));
+    dbgOutLn(F("Card failed, or not present, restarting"));
     //    PORTD ^= _BV(LED_WRITE);
     LEDAllBlink();
+    LEDOff(SUPPLY_3V3);
     outputFreeMem('F');
-    delay(250);
+    delay(500);
+    LEDAllBlink();
+    LEDOn(SUPPLY_3V3);
+    delay(500);
   }
   int t = 0; 
   int h = 0;
