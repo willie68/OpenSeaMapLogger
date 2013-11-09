@@ -1,7 +1,7 @@
 .....................................................................
 
-This file includes licensing information for Arduino-Tiny.  The GNU 
-Lesser General Public License covers Arduino-Tiny.
+This file includes licensing information for OpenSeaMap Logger.  The GNU 
+Lesser General Public License covers OpenSeaMap Logger.
 
 .....................................................................
 
