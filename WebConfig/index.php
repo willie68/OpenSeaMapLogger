@@ -84,5 +84,12 @@ The source code is developt under LGPL License and can be found here: <a href="h
 <br>
 (1) you can deactivate the writing of gyro data. This saves space on the sd card, but the data may be useless.<br>
 (2) you can activate the writing of special NMEA Messages for the board supply. Should be activated only in case of a support request.<br>
+
+
+<div id="footer">
+	<p align="center"><a href="http://www.disclaimer.de/disclaimer.htm?farbe=FFFFFF/000000/000000/000000">Haftungsausschluss</a></p>
+	<p align="center"><a href="http://www.wk-musik.tk">Willies world</a></p>
+</div>
+
 </body>
 </html>
