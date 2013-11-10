@@ -41,3 +41,4 @@ const char CONFIG_FILE[] = "config.dat";
 const word EEPROM_BAUD_A = 0x0010;
 const word EEPROM_BAUD_B = 0x0011;
 const word EEPROM_SEATALK = 0x0012;
+const word EEPROM_OUTPUT = 0x0013;

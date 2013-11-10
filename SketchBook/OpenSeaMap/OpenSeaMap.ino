@@ -1,5 +1,5 @@
-//#define outputVcc
-#define outputGyro
+#define doOutputVcc
+#define doOutputGyro
 //#define debug
 //#define freemem
 //#define noWrite
@@ -8,7 +8,7 @@
 #include <MemoryFree.h>
 #endif
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 #include <Wire.h>
 #include <I2Cdev.h>
 #include <MPU6050.h>
@@ -26,7 +26,7 @@
 #include <EEPROM.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.5
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.6
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,6 +71,8 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131110 V0.1.6
+// - Gyro und VCC per configdatei wählbar machen
 // WKLA 20131107 V0.1.5
 // - Für rev 3 Boards, kann nun die 3V3 Spannungsversorgung geschaltet werden. 
 //   Dieses wird immer beim fehlerhaften Start der SD Karte gemacht. Für rev 2 
@@ -97,17 +99,19 @@ SdFile dataFile;
 // actual activation state of the channel
 boolean firstSerial = true;
 boolean secondSerial = true;
+boolean seatalkActive = false;
+boolean outputGyro = true;
+boolean outputVcc = false;
 
 // Port for NMEA B
 AltSoftSerial mySerial;
 
 boolean error = false;
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
 #endif
 
-boolean seatalkActive = false;
 byte index_a, index_b;
 
 void setup() {
@@ -190,6 +194,7 @@ void getParameters() {
   byte baud_a = EEPROM.read(EEPROM_BAUD_A);
   byte baud_b = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
+  byte outputs = EEPROM.read(EEPROM_OUTPUT);
 
   if (baud_a > 0x06) {
     baud_a = 3;
@@ -257,10 +262,25 @@ void getParameters() {
             }       
             baud_b = baud;
           }
+          if (paramCount == 3) {
+            byte foutputs = readValue - '0';
+            dbgOut(F("Outputs readed:"));
+            dbgOutLn(foutputs);
+            if (foutputs != outputs) {
+              dbgOutLn(F("EEPROM write Outputs:"));
+              EEPROM.write(EEPROM_OUTPUT, foutputs);
+            }       
+            outputs = foutputs;
+          }
         }
       }
       dataFile.close();
     }
+  }
+
+  if (outputs < 0x80) {
+    outputVcc = (outputs & 0x01) > 0;
+    outputGyro = (outputs & 0x02) > 0;
   }
   
   initSerials(baud_a, baud_b);
@@ -320,7 +340,7 @@ inline void initGyro() {
   dbgOutLn(F("Init I2C"));
   LEDOn(LED_RX_B);
 
-#ifdef outputGyro
+#ifdef doOutputGyro
   Wire.begin();
   // initialize device
   accelgyro.initialize();
@@ -344,7 +364,7 @@ inline void initGyro() {
 byte fileCount = 0;
 char filename[] = "data0000.dat";
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 int16_t ax, ay, az;
 #endif
 
@@ -352,7 +372,7 @@ word vcc;
 unsigned long lastMillis;
 unsigned long lastW;
 
-#ifdef outputVcc
+#ifdef doOutputVcc
 unsigned long vccTime;
 #endif
 
@@ -405,7 +425,7 @@ void loop() {
     LEDAllOff();
 
     if (dataFile.isOpen()) {
-#ifdef outputVcc
+#ifdef doOutputVcc
       writeVCC();
 #endif
       stopLogger();
@@ -428,10 +448,10 @@ void loop() {
     if ((now - 1000) > lastMillis) {
       outputFreeMem('L');
       lastMillis = now;
-#ifdef outputGyro
+#ifdef doOutputGyro
       writeGyroData();
 #endif      
-#ifdef outputVcc
+#ifdef doOutputVcc
       writeVCC();
 #endif      
       // testing the needing of a new file
@@ -456,7 +476,7 @@ word readVcc() {
   result = ADCL;
   result |= ADCH<<8;
   result = 1126400L / result; // Back-calculate AVcc in mV
-#ifdef outputVcc
+#ifdef doOutputVcc
   vccTime = millis();
 #endif
   return result;
@@ -465,26 +485,30 @@ word readVcc() {
 /**
  * writing vcc data to the sd card.
  **/
-#ifdef outputVcc
+#ifdef doOutputVcc
 inline void writeVCC() {
-  sprintf_P(linedata, VCC_MESSAGE, vcc); 
-  writeData(vccTime, 'I', linedata);
+  if (outputVcc) {
+    sprintf_P(linedata, VCC_MESSAGE, vcc); 
+    writeData(vccTime, 'I', linedata);
+  }
 }
 #endif
 
 /**
  * writing gyro data to the sd card.
  **/
-#ifdef outputGyro
+#ifdef doOutputGyro
 inline void writeGyroData() {
-  unsigned long startTime = millis();
-  accelgyro.getRotation(&ax, &ay, &az);
-  sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az); 
-  writeData(startTime, 'I',  linedata);
+  if (outputGyro) {
+    unsigned long startTime = millis();
+    accelgyro.getRotation(&ax, &ay, &az);
+    sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az); 
+    writeData(startTime, 'I',  linedata);
 
-  accelgyro.getAcceleration(&ax, &ay, &az);
-  sprintf_P(linedata, ACC_MESSAGE, ax, ay, az); 
-  writeData(startTime, 'I', linedata);
+    accelgyro.getAcceleration(&ax, &ay, &az);
+    sprintf_P(linedata, ACC_MESSAGE, ax, ay, az); 
+    writeData(startTime, 'I', linedata);
+  }
 }
 #endif
 

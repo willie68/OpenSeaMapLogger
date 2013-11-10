@@ -10,6 +10,10 @@
  if ($seatalk) {
    $baud_a = "3";
  }
+ $outputGyro = $_POST["outputGyro"];
+ $outputVcc =  $_POST["outputVcc"];
+ $output = $outputGyro + $outputVcc;
  echo "$seatalk$baud_a\r\n";
  echo "$baud_b\r\n";
+ echo "$output\r\n";
 ?>
