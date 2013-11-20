@@ -26,7 +26,7 @@
 #include <EEPROM.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.6
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.7
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,6 +71,8 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131110 V0.1.7
+// - Gyro und VCC per configdatei wählbar machen
 // WKLA 20131110 V0.1.6
 // - Gyro und VCC per configdatei wählbar machen
 // WKLA 20131107 V0.1.5
@@ -113,6 +115,8 @@ MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
 #endif
 
 byte index_a, index_b;
+
+char filename[13];
 
 void setup() {
   index_a = 0;
@@ -190,24 +194,34 @@ void setup() {
  **/
 void getParameters() {
   dbgOutLn(F("readconf"));
-  char filename[11] = "config.dat";
+  strcpy_P(filename, CONFIG_FILENAME);
   byte baud_a = EEPROM.read(EEPROM_BAUD_A);
   byte baud_b = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
   byte outputs = EEPROM.read(EEPROM_OUTPUT);
+  seatalkActive = false;
+
+  dbgOut(F("EEPROM read:"));
+  dbgOut2(baud_a,HEX);
+  dbgOut(',');
+  dbgOut2(baud_b,HEX);
+  dbgOut(',');
+  dbgOut2(seatalk,HEX);
+  dbgOut(',');
+  dbgOutLn2(outputs,HEX);
 
   if (baud_a > 0x06) {
     baud_a = 3;
-    seatalkActive = false;
   }
   if (baud_b > 0x04) {
     baud_b = 3;
   }
+
   if (seatalk < 0x06) {
     seatalkActive = seatalk > 0;   
   }
 
-  if (sd.exists(filename)) {    // only open a new file if it doesn't exist
+  if (sd.exists(filename)) {
     dbgOutLn(F("file exists"));
     if (dataFile.open(filename, O_RDONLY)) {
      dbgOutLn(F("file open"));
@@ -221,10 +235,6 @@ void getParameters() {
         dbgOut(readValue);
         dbgOut(F(" pcnt:"));
         dbgOutLn(paramCount);
-        if (readValue == 's') {
-          seatalkActive = true;
-          readValue = dataFile.read();
-        }
         if ((readValue == 0x0D) || (readValue == 0x0A)) {
           if (!lastCR) {
             paramCount++;
@@ -234,6 +244,14 @@ void getParameters() {
         else {
           lastCR = false;
           if (paramCount == 1) {
+            if (readValue == 's') {
+              dbgOutLn(F("ST active"));          
+              seatalkActive = true;
+              readValue = dataFile.read();
+            } else {
+              dbgOutLn(F("ST inactive"));          
+              seatalkActive = false;
+            }
             byte baud = readValue - '0';
             dbgOut(F("A baud readed:"));
             dbgOutLn(BAUDRATES[baud]);
@@ -241,7 +259,7 @@ void getParameters() {
               dbgOutLn(F("EEPROM write A:"));
               EEPROM.write(EEPROM_BAUD_A, baud);
             }       
-            if ((seatalk > 0) != seatalkActive) {
+            if ((seatalk > 0x06) || ((seatalk > 0) != seatalkActive)) {
               dbgOutLn(F("EEPROM write SEATALK:"));
               if (seatalkActive) {
                 EEPROM.write(EEPROM_SEATALK, 1);
@@ -283,7 +301,27 @@ void getParameters() {
     outputGyro = (outputs & 0x02) > 0;
   }
   
+  outputParameter(baud_a, baud_b, outputs);
+  
   initSerials(baud_a, baud_b);
+}
+
+inline void outputParameter(byte baud_a, byte baud_b, byte outputs) {
+  strcpy_P(filename, CNF_FILENAME);
+  if (sd.exists(filename)) {
+    sd.remove(filename);
+  }
+  
+  dataFile.open(filename, O_RDWR | O_CREAT | O_AT_END);
+  if (seatalkActive) {
+    dataFile.print('s');
+  }
+  dataFile.println(baud_a);
+  dataFile.println(baud_b);
+  dataFile.println(outputs);
+  strcpy_P(filename, VERSION);
+  dataFile.println(filename);
+  dataFile.close();
 }
 
 inline void initSerials(byte baud_a, byte baud_b) {
@@ -362,7 +400,6 @@ inline void initGyro() {
 /*********************************/
 
 byte fileCount = 0;
-char filename[] = "data0000.dat";
 
 #ifdef doOutputGyro
 int16_t ax, ay, az;
@@ -536,6 +573,8 @@ void newFile() {
   int h = 0;
   int z = 0;
   int e = 0;
+  strcpy_P(filename, DATA_FILENAME);
+
   for (word i = lastStartNumber+1; i < 10000; i++) { // create new filename w/ 3 digits 000-999
     t = i/1000;
     filename[4] = t + '0';          // calculates tausends position
