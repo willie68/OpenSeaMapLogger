@@ -3,6 +3,7 @@
 //#define debug
 //#define freemem
 //#define noWrite
+//#define devmode
 
 #ifdef freemem
 #include <MemoryFree.h>
@@ -26,7 +27,7 @@
 #include <EEPROM.h>
 
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.7
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.8
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,8 +72,11 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
-// WKLA 20131110 V0.1.7
+// WKLA 20131120 V0.1.8
+// - 30 Sekunden warten, bis Logger startet
+// WKLA 20131120 V0.1.7
 // - Gyro und VCC per configdatei wählbar machen
+// - Datei mit den aktuellen Einstellungen auf SD schreiben
 // WKLA 20131110 V0.1.6
 // - Gyro und VCC per configdatei wählbar machen
 // WKLA 20131107 V0.1.5
@@ -117,6 +121,7 @@ MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
 byte index_a, index_b;
 
 char filename[13];
+unsigned long lastMillis;
 
 void setup() {
   index_a = 0;
@@ -132,7 +137,6 @@ void setup() {
   delay(100);
 #endif
 #endif
-
   outputFreeMem('s');
   //--- init outputs and inputs ---
   // pins for LED's  
@@ -145,7 +149,7 @@ void setup() {
 
   // Activating 3V3 supply
   pinMode(SUPPLY_3V3, OUTPUT);
-  LEDOn(SUPPLY_3V3);
+  LEDOff(SUPPLY_3V3);
   
   // pins for switches 
   pinMode(SW_STOP, INPUT_PULLUP);
@@ -160,7 +164,18 @@ void setup() {
 
   // see if the card is present and can be initialized:
   delay(1000);
-  
+#ifndef devmode
+  lastMillis = millis() + 30000;
+  while (millis() < lastMillis) {
+    LEDAllBlink();
+    delay(500);
+    LEDAllBlink();
+    delay(500);
+  }
+#endif
+
+  LEDOn(SUPPLY_3V3);
+
   dbgOutLn(F("checking SD Card"));
   while (!sd.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present, restarting"));
@@ -406,7 +421,6 @@ int16_t ax, ay, az;
 #endif
 
 word vcc;
-unsigned long lastMillis;
 unsigned long lastW;
 
 #ifdef doOutputVcc
