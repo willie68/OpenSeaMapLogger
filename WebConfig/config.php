@@ -13,7 +13,10 @@
  $outputGyro = $_POST["outputGyro"];
  $outputVcc =  $_POST["outputVcc"];
  $output = $outputGyro + $outputVcc;
+ $vesselid =  $_POST["vesselid"];
+ $vesselid = sprintf("%'08x",$vesselid);
  echo "$seatalk$baud_a\r\n";
  echo "$baud_b\r\n";
  echo "$output\r\n";
+ echo "$vesselid\r\n";
 ?>

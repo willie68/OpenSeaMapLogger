@@ -22,6 +22,14 @@ mysql_select_db($db, $conn);
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<meta http-equiv="Content-Language" content="en" />
 	<title>Open Sea Map Logger Configuration</title>
+	<script>
+	function isNumberKey(evt){
+    var charCode = (evt.which) ? evt.which : event.keyCode
+    if (charCode > 31 && (charCode < 48 || charCode > 57))
+        return false;
+    return true;
+	}
+	</script>
 </head>
 <body>
 <h1>Open Sea Map Logger Configuration</h1>
@@ -30,6 +38,8 @@ Here you can download the actual firmware file: <a href="http://wkla.dyndns.org/
 <a href="readme.html" target="_blank">readme</a> and <a href="OSM_DL_Anleitung.pdf" target="_blank">Manual</a><br>
 The source code is developt under LGPL License and can be found here: <a href="https://github.com/OpenSeaMap/logger-oseam-0183" target="_blank">Github repository</a>
 <br/>
+I'm developing a program for windows for configuration and automatic upload. Here you can find it: <a href="http://wkla.dyndns.org/downloader/download.php?ID=64" target="_blank">MCS_OpenSeaMap_Logger.zip</a><br/>
+You will need to have Java 1.7 installed.
 <hr/>
 <h2>Configuration</h2>
 <form name="config" action="config.php" method="post">
@@ -75,6 +85,14 @@ The source code is developt under LGPL License and can be found here: <a href="h
 		  <input type="checkbox" name="outputVcc" value="1"/>write board supply (2)
 		</td>
 		<td valign="top">(*) Default. Here you can de/activate special logger features.</td>
+	</tr>
+	<tr>
+		<td valign="top"><b>Vessel id</b></td>
+		<td valign="top">&nbsp;</td>
+		<td>
+		  <input type="number" name="vesselid" onkeypress='return isNumberKey(event)'/>
+		</td>
+		<td valign="top">(optional) If your vessel is registered at the OpenSeaMap depth webbsite, you can enter here your vessel id.<br/> This will be stored into the logger.</td>
 	</tr>
 </table>
 	<br/>
