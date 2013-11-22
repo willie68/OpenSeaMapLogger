@@ -36,10 +36,14 @@ mysql_select_db($db, $conn);
 
 Here you can download the actual firmware file: <a href="http://wkla.dyndns.org/downloader/download.php?ID=61">FIRMWARE <?php echo "$version"; ?></a><br>
 <a href="readme.html" target="_blank">readme</a> and <a href="OSM_DL_Anleitung.pdf" target="_blank">Manual</a><br>
-The source code is developt under LGPL License and can be found here: <a href="https://github.com/OpenSeaMap/logger-oseam-0183" target="_blank">Github repository</a>
-<br/>
+The source code for the logger is developed under LGPL License and can be found here: <a href="https://github.com/OpenSeaMap/logger-oseam-0183" target="_blank">Github repository</a><br/>
+The code for the PC application is developed under GPL License and can be found here: <a href="https://sourceforge.net/p/openseamaplogger/" target="_blank">Sourceforge repository</a><br/>
+(if i have some time, i will consolidate the repositories, so that everything can be found an my sourceforge repo.)
 I'm developing a program for windows for configuration and automatic upload. Here you can find it: <a href="http://wkla.dyndns.org/downloader/download.php?ID=64" target="_blank">MCS_OpenSeaMap_Logger.zip</a><br/>
-You will need to have Java 1.7 installed.
+You will need to have Java 1.7 installed.<br/>
+Some test data you will find here: <a href="http://wkla.dyndns.org/downloader/download.php?ID=65">Testdata</a><br/>
+unzip this archive to a empty sd card. Then start the MCS_OpenSeaMap_Logger.exe and navigate to the sd card.<br/>
+<a href="screenshot_01.png" target="_blank"><img src="screenshot_01.png" width="200"></a>
 <hr/>
 <h2>Configuration</h2>
 <form name="config" action="config.php" method="post">
