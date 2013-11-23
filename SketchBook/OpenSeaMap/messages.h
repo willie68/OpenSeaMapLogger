@@ -1,8 +1,8 @@
 /**
 * here all NMEA messages are defined
 */
-#define VERSION PSTR("V 0.1.8")
-#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.8")
+#define VERSION PSTR("V 0.1.9")
+#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.9")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
 #define VCC_MESSAGE PSTR("POSMVCC,%i")
 #define GYRO_MESSAGE PSTR("POSMGYR,%i,%i,%i")

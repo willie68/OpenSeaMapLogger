@@ -1,4 +1,4 @@
-#define doOutputVcc
+//#define doOutputVcc
 #define doOutputGyro
 //#define debug
 //#define freemem
@@ -25,9 +25,9 @@
 #include <SdFat.h>
 
 #include <EEPROM.h>
-
+#include "EEPROMStruct.h"
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.8
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.9
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -72,6 +72,9 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131123 V0.1.9
+// - VesselID ins EEPROM
+// - New initialise section for better factory tests
 // WKLA 20131120 V0.1.8
 // - 30 Sekunden warten, bis Logger startet
 // WKLA 20131120 V0.1.7
@@ -122,6 +125,7 @@ byte index_a, index_b;
 
 char filename[13];
 unsigned long lastMillis;
+unsigned long vesselID;
 
 void setup() {
   index_a = 0;
@@ -130,6 +134,11 @@ void setup() {
 
   // prints title with ending line break
   dbgOutLn(F("OpenSeaMap Datalogger"));
+#ifdef debug
+#ifdef devmode
+  dbgOutLn(F("Devmode"));
+#endif
+#endif
 #ifndef debug
 #ifdef freemem
   Serial.begin(4800);
@@ -164,17 +173,10 @@ void setup() {
 
   // see if the card is present and can be initialized:
   delay(1000);
-#ifndef devmode
-  lastMillis = millis() + 30000;
-  while (millis() < lastMillis) {
-    LEDAllBlink();
-    delay(500);
-    LEDAllBlink();
-    delay(500);
-  }
-#endif
-
   LEDOn(SUPPLY_3V3);
+
+  initGyro();
+  delay(1000);
 
   dbgOutLn(F("checking SD Card"));
   while (!sd.begin(SD_CHIPSELECT)) {
@@ -191,10 +193,21 @@ void setup() {
 
   LEDAllOff();
   LEDOn(LED_POWER);
-  
+   
+#ifndef devmode
+  LEDAllOff();
+  dbgOutLn(F("CAP-load"));
+  lastMillis = millis() + 30000;
+  while (millis() < lastMillis) {
+    LEDAllBlink();
+    delay(500);
+    LEDAllBlink();
+    delay(500);
+  }
+#endif
+
   LEDOn(LED_RX_A);
   dbgOutLn(F("Init NMEA"));
-  
   getParameters();
 
   initGyro();
@@ -214,6 +227,8 @@ void getParameters() {
   byte baud_b = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
   byte outputs = EEPROM.read(EEPROM_OUTPUT);
+  EEPROM_readStruct(EEPROM_VESSELID, vesselID);
+  
   seatalkActive = false;
 
   dbgOut(F("EEPROM read:"));
@@ -305,6 +320,24 @@ void getParameters() {
             }       
             outputs = foutputs;
           }
+          if (paramCount == 4) {
+            // read vesselID
+            vesselID = 0;
+            byte pos = 0;
+            filename[pos++] = readValue;
+            while (dataFile.available()) {
+              readValue = dataFile.read();
+              if ((readValue == 0x0D) || (readValue == 0x0A)) {
+                break;
+              }
+              filename[pos++] = readValue;
+            }
+            filename[pos] = 0;
+            vesselID = strtoul(filename, NULL, 16);
+            dbgOut(F("Vesselid:"));
+            dbgOutLn2(vesselID, HEX);
+            EEPROM_writeStruct(EEPROM_VESSELID, vesselID);
+          }
         }
       }
       dataFile.close();
@@ -336,6 +369,7 @@ inline void outputParameter(byte baud_a, byte baud_b, byte outputs) {
   dataFile.println(outputs);
   strcpy_P(filename, VERSION);
   dataFile.println(filename);
+  dataFile.println(vesselID, HEX);
   dataFile.close();
 }
 
