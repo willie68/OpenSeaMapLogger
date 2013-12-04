@@ -37,10 +37,10 @@
 #define LEDAllOff() \
   PORTD &= ~(_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
 
-#define LEDAllOn() \ 
+#define LEDAllOn() \
   PORTD |= _BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE); 
   
-#define LEDAllBlink() \ 
+#define LEDAllBlink() \
   PORTD ^= (_BV(LED_POWER) | _BV(LED_RX_A) | _BV(LED_RX_B) | _BV(LED_WRITE));
   
 #ifdef freemem
