@@ -1,14 +1,15 @@
-//#define outputVcc
-#define outputGyro
+//#define doOutputVcc
+#define doOutputGyro
 //#define debug
 //#define freemem
 //#define noWrite
+//#define devmode
 
 #ifdef freemem
 #include <MemoryFree.h>
 #endif
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 #include <Wire.h>
 #include <I2Cdev.h>
 #include <MPU6050.h>
@@ -24,9 +25,9 @@
 #include <SdFat.h>
 
 #include <EEPROM.h>
-
+#include "EEPROMStruct.h"
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.5
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.9
  Copyright (c) 2013 Wilfried Klaas.  All right reserved.
  
  This program is free software; you can redistribute it and/or
@@ -71,6 +72,16 @@
  
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card. 
  */
+// WKLA 20131123 V0.1.9
+// - VesselID ins EEPROM
+// - New initialise section for better factory tests
+// WKLA 20131120 V0.1.8
+// - 30 Sekunden warten, bis Logger startet
+// WKLA 20131120 V0.1.7
+// - Gyro und VCC per configdatei wählbar machen
+// - Datei mit den aktuellen Einstellungen auf SD schreiben
+// WKLA 20131110 V0.1.6
+// - Gyro und VCC per configdatei wählbar machen
 // WKLA 20131107 V0.1.5
 // - Für rev 3 Boards, kann nun die 3V3 Spannungsversorgung geschaltet werden. 
 //   Dieses wird immer beim fehlerhaften Start der SD Karte gemacht. Für rev 2 
@@ -97,18 +108,24 @@ SdFile dataFile;
 // actual activation state of the channel
 boolean firstSerial = true;
 boolean secondSerial = true;
+boolean seatalkActive = false;
+boolean outputGyro = true;
+boolean outputVcc = false;
 
 // Port for NMEA B
 AltSoftSerial mySerial;
 
 boolean error = false;
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
 #endif
 
-boolean seatalkActive = false;
 byte index_a, index_b;
+
+char filename[13];
+unsigned long lastMillis;
+unsigned long vesselID;
 
 void setup() {
   index_a = 0;
@@ -117,6 +134,11 @@ void setup() {
 
   // prints title with ending line break
   dbgOutLn(F("OpenSeaMap Datalogger"));
+#ifdef debug
+#ifdef devmode
+  dbgOutLn(F("Devmode"));
+#endif
+#endif
 #ifndef debug
 #ifdef freemem
   Serial.begin(4800);
@@ -124,7 +146,6 @@ void setup() {
   delay(100);
 #endif
 #endif
-
   outputFreeMem('s');
   //--- init outputs and inputs ---
   // pins for LED's  
@@ -137,7 +158,7 @@ void setup() {
 
   // Activating 3V3 supply
   pinMode(SUPPLY_3V3, OUTPUT);
-  LEDOn(SUPPLY_3V3);
+  LEDOff(SUPPLY_3V3);
   
   // pins for switches 
   pinMode(SW_STOP, INPUT_PULLUP);
@@ -152,7 +173,11 @@ void setup() {
 
   // see if the card is present and can be initialized:
   delay(1000);
-  
+  LEDOn(SUPPLY_3V3);
+
+  initGyro();
+  delay(1000);
+
   dbgOutLn(F("checking SD Card"));
   while (!sd.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present, restarting"));
@@ -168,10 +193,21 @@ void setup() {
 
   LEDAllOff();
   LEDOn(LED_POWER);
-  
+   
+#ifndef devmode
+  LEDAllOff();
+  dbgOutLn(F("CAP-load"));
+  lastMillis = millis() + 30000;
+  while (millis() < lastMillis) {
+    LEDAllBlink();
+    delay(500);
+    LEDAllBlink();
+    delay(500);
+  }
+#endif
+
   LEDOn(LED_RX_A);
   dbgOutLn(F("Init NMEA"));
-  
   getParameters();
 
   initGyro();
@@ -186,23 +222,36 @@ void setup() {
  **/
 void getParameters() {
   dbgOutLn(F("readconf"));
-  char filename[11] = "config.dat";
+  strcpy_P(filename, CONFIG_FILENAME);
   byte baud_a = EEPROM.read(EEPROM_BAUD_A);
   byte baud_b = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
+  byte outputs = EEPROM.read(EEPROM_OUTPUT);
+  EEPROM_readStruct(EEPROM_VESSELID, vesselID);
+  
+  seatalkActive = false;
+
+  dbgOut(F("EEPROM read:"));
+  dbgOut2(baud_a,HEX);
+  dbgOut(',');
+  dbgOut2(baud_b,HEX);
+  dbgOut(',');
+  dbgOut2(seatalk,HEX);
+  dbgOut(',');
+  dbgOutLn2(outputs,HEX);
 
   if (baud_a > 0x06) {
     baud_a = 3;
-    seatalkActive = false;
   }
   if (baud_b > 0x04) {
     baud_b = 3;
   }
+
   if (seatalk < 0x06) {
     seatalkActive = seatalk > 0;   
   }
 
-  if (sd.exists(filename)) {    // only open a new file if it doesn't exist
+  if (sd.exists(filename)) {
     dbgOutLn(F("file exists"));
     if (dataFile.open(filename, O_RDONLY)) {
      dbgOutLn(F("file open"));
@@ -216,10 +265,6 @@ void getParameters() {
         dbgOut(readValue);
         dbgOut(F(" pcnt:"));
         dbgOutLn(paramCount);
-        if (readValue == 's') {
-          seatalkActive = true;
-          readValue = dataFile.read();
-        }
         if ((readValue == 0x0D) || (readValue == 0x0A)) {
           if (!lastCR) {
             paramCount++;
@@ -229,6 +274,14 @@ void getParameters() {
         else {
           lastCR = false;
           if (paramCount == 1) {
+            if (readValue == 's') {
+              dbgOutLn(F("ST active"));          
+              seatalkActive = true;
+              readValue = dataFile.read();
+            } else {
+              dbgOutLn(F("ST inactive"));          
+              seatalkActive = false;
+            }
             byte baud = readValue - '0';
             dbgOut(F("A baud readed:"));
             dbgOutLn(BAUDRATES[baud]);
@@ -236,7 +289,7 @@ void getParameters() {
               dbgOutLn(F("EEPROM write A:"));
               EEPROM.write(EEPROM_BAUD_A, baud);
             }       
-            if ((seatalk > 0) != seatalkActive) {
+            if ((seatalk > 0x06) || ((seatalk > 0) != seatalkActive)) {
               dbgOutLn(F("EEPROM write SEATALK:"));
               if (seatalkActive) {
                 EEPROM.write(EEPROM_SEATALK, 1);
@@ -257,13 +310,67 @@ void getParameters() {
             }       
             baud_b = baud;
           }
+          if (paramCount == 3) {
+            byte foutputs = readValue - '0';
+            dbgOut(F("Outputs readed:"));
+            dbgOutLn(foutputs);
+            if (foutputs != outputs) {
+              dbgOutLn(F("EEPROM write Outputs:"));
+              EEPROM.write(EEPROM_OUTPUT, foutputs);
+            }       
+            outputs = foutputs;
+          }
+          if (paramCount == 4) {
+            // read vesselID
+            vesselID = 0;
+            byte pos = 0;
+            filename[pos++] = readValue;
+            while (dataFile.available()) {
+              readValue = dataFile.read();
+              if ((readValue == 0x0D) || (readValue == 0x0A)) {
+                break;
+              }
+              filename[pos++] = readValue;
+            }
+            filename[pos] = 0;
+            vesselID = strtoul(filename, NULL, 16);
+            dbgOut(F("Vesselid:"));
+            dbgOutLn2(vesselID, HEX);
+            EEPROM_writeStruct(EEPROM_VESSELID, vesselID);
+          }
         }
       }
       dataFile.close();
     }
   }
+
+  if (outputs < 0x80) {
+    outputVcc = (outputs & 0x01) > 0;
+    outputGyro = (outputs & 0x02) > 0;
+  }
+  
+  outputParameter(baud_a, baud_b, outputs);
   
   initSerials(baud_a, baud_b);
+}
+
+inline void outputParameter(byte baud_a, byte baud_b, byte outputs) {
+  strcpy_P(filename, CNF_FILENAME);
+  if (sd.exists(filename)) {
+    sd.remove(filename);
+  }
+  
+  dataFile.open(filename, O_RDWR | O_CREAT | O_AT_END);
+  if (seatalkActive) {
+    dataFile.print('s');
+  }
+  dataFile.println(baud_a);
+  dataFile.println(baud_b);
+  dataFile.println(outputs);
+  strcpy_P(filename, VERSION);
+  dataFile.println(filename);
+  dataFile.println(vesselID, HEX);
+  dataFile.close();
 }
 
 inline void initSerials(byte baud_a, byte baud_b) {
@@ -320,7 +427,7 @@ inline void initGyro() {
   dbgOutLn(F("Init I2C"));
   LEDOn(LED_RX_B);
 
-#ifdef outputGyro
+#ifdef doOutputGyro
   Wire.begin();
   // initialize device
   accelgyro.initialize();
@@ -342,17 +449,15 @@ inline void initGyro() {
 /*********************************/
 
 byte fileCount = 0;
-char filename[] = "data0000.dat";
 
-#ifdef outputGyro
+#ifdef doOutputGyro
 int16_t ax, ay, az;
 #endif
 
 word vcc;
-unsigned long lastMillis;
 unsigned long lastW;
 
-#ifdef outputVcc
+#ifdef doOutputVcc
 unsigned long vccTime;
 #endif
 
@@ -405,7 +510,7 @@ void loop() {
     LEDAllOff();
 
     if (dataFile.isOpen()) {
-#ifdef outputVcc
+#ifdef doOutputVcc
       writeVCC();
 #endif
       stopLogger();
@@ -428,10 +533,10 @@ void loop() {
     if ((now - 1000) > lastMillis) {
       outputFreeMem('L');
       lastMillis = now;
-#ifdef outputGyro
+#ifdef doOutputGyro
       writeGyroData();
 #endif      
-#ifdef outputVcc
+#ifdef doOutputVcc
       writeVCC();
 #endif      
       // testing the needing of a new file
@@ -456,7 +561,7 @@ word readVcc() {
   result = ADCL;
   result |= ADCH<<8;
   result = 1126400L / result; // Back-calculate AVcc in mV
-#ifdef outputVcc
+#ifdef doOutputVcc
   vccTime = millis();
 #endif
   return result;
@@ -465,26 +570,30 @@ word readVcc() {
 /**
  * writing vcc data to the sd card.
  **/
-#ifdef outputVcc
+#ifdef doOutputVcc
 inline void writeVCC() {
-  sprintf_P(linedata, VCC_MESSAGE, vcc); 
-  writeData(vccTime, 'I', linedata);
+  if (outputVcc) {
+    sprintf_P(linedata, VCC_MESSAGE, vcc); 
+    writeData(vccTime, 'I', linedata);
+  }
 }
 #endif
 
 /**
  * writing gyro data to the sd card.
  **/
-#ifdef outputGyro
+#ifdef doOutputGyro
 inline void writeGyroData() {
-  unsigned long startTime = millis();
-  accelgyro.getRotation(&ax, &ay, &az);
-  sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az); 
-  writeData(startTime, 'I',  linedata);
+  if (outputGyro) {
+    unsigned long startTime = millis();
+    accelgyro.getRotation(&ax, &ay, &az);
+    sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az); 
+    writeData(startTime, 'I',  linedata);
 
-  accelgyro.getAcceleration(&ax, &ay, &az);
-  sprintf_P(linedata, ACC_MESSAGE, ax, ay, az); 
-  writeData(startTime, 'I', linedata);
+    accelgyro.getAcceleration(&ax, &ay, &az);
+    sprintf_P(linedata, ACC_MESSAGE, ax, ay, az); 
+    writeData(startTime, 'I', linedata);
+  }
 }
 #endif
 
@@ -512,6 +621,8 @@ void newFile() {
   int h = 0;
   int z = 0;
   int e = 0;
+  strcpy_P(filename, DATA_FILENAME);
+
   for (word i = lastStartNumber+1; i < 10000; i++) { // create new filename w/ 3 digits 000-999
     t = i/1000;
     filename[4] = t + '0';          // calculates tausends position
