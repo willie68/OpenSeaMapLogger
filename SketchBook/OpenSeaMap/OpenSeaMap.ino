@@ -1,4 +1,4 @@
-//#define doOutputVcc
+#define doOutputVcc
 #define doOutputGyro
 //#define debug
 //#define freemem
@@ -172,20 +172,22 @@ void setup() {
   LEDOn(LED_POWER);
 
   // see if the card is present and can be initialized:
-  delay(1000);
+  delay(500);
   LEDOn(SUPPLY_3V3);
+  delay(500);
 
   initGyro();
   delay(1000);
 
   dbgOutLn(F("checking SD Card"));
+  LEDAllOff();
   while (!sd.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present, restarting"));
-    LEDAllBlink();
+    LEDOn(LED_WRITE);
     LEDOff(SUPPLY_3V3);
-    outputFreeMem('F');
+//    outputFreeMem('F');
     delay(500);
-    LEDAllBlink();
+    LEDOff(LED_WRITE);
     LEDOn(SUPPLY_3V3);
     delay(500);    
   }
@@ -199,9 +201,9 @@ void setup() {
   dbgOutLn(F("CAP-load"));
   lastMillis = millis() + 30000;
   while (millis() < lastMillis) {
-    LEDAllBlink();
+    LEDOn(LED_POWER);
     delay(500);
-    LEDAllBlink();
+    LEDOff(LED_POWER);
     delay(500);
   }
 #endif
@@ -914,5 +916,3 @@ void writeNMEAData(char* data) {
   dbgOutLn2(crc,HEX);
 #endif
 }
-
-
