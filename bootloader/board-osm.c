@@ -63,23 +63,36 @@ void main(void)
 	WDTCSR |= _BV(WDCE) | _BV(WDE);
 	WDTCSR = 0;
 
+	/* switching the write LED on*/
+	  DDRD = 0xF2;
+	if (!(reset_reason & _BV(BORF))) {
+	  PORTD = PORTD | 0x80;
+	}
+
 	/* start app right ahead if this was not an external reset */
 	/* this means that all the code below this line is only executed on external reset */
 	/* WKLA: 22.09.2013: this bootloader must always be executed */
 	// if (!(reset_reason & _BV(EXTRF))) app_start();
-	if (!(reset_reason & _BV(EXTRF)) && (!(reset_reason & _BV(PORF)))&& (!(reset_reason & _BV(BORF)))) app_start();
+	if (!(reset_reason & _BV(EXTRF)) && (!(reset_reason & _BV(PORF)))&& (!(reset_reason & _BV(BORF)))) {
+		PORTD = PORTD & 0x0F;
+		app_start();
+	}
      
 	/* this is needed because of the __attribute__ naked, section .init 9 */
 	/* from now, we can call functions :-) */
 	asm volatile ( "clr __zero_reg__" );
 	SP=RAMEND;
 
-	stk500v1();
+	PORTD = PORTD & 0x0F;
+	PORTD = PORTD | 0x40;
+	//stk500v1();
 
 #ifdef MMC_CS
 	mmc_updater();
 #endif
-
+	
+	// Switch off LED
+	PORTD = PORTD & 0x0F;
 	/* we reset via watchdog in order to reset all the registers to their default values */
 	WDTCSR = _BV(WDE);
 	while (1); // 16 ms
