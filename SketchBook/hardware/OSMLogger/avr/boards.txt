@@ -7,8 +7,8 @@ osmlogger.upload.speed=57600
 
 osmlogger.bootloader.tool=avrdude
 osmlogger.bootloader.low_fuses=0xff
-osmlogger.bootloader.high_fuses=0xda
-osmlogger.bootloader.extended_fuses=0x04
+osmlogger.bootloader.high_fuses=0xd8
+osmlogger.bootloader.extended_fuses=0x05
 osmlogger.bootloader.file=oseam/2boots-osm-atmega328p-16000000L-PB2.hex
 osmlogger.bootloader.unlock_bits=0x3F
 osmlogger.bootloader.lock_bits=0x0F

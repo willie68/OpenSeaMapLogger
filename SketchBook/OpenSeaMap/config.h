@@ -30,7 +30,7 @@ const byte LED_RX_A = 4; // PD4
 const byte SW_STOP = 3; // PD3
 
 // Voltagevalue for shutdown
-const int VCC_GOLDCAP = 4600;
+const int VCC_GOLDCAP = 300;
 
 // sopme debug strings
 const String vccString = "VCC:";

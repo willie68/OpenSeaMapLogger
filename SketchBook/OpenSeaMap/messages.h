@@ -1,13 +1,18 @@
 /**
 * here all NMEA messages are defined
 */
-#define VERSION PSTR("V 0.1.9")
-#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.9")
+#define VERSION PSTR("V 0.1.11")
+#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.11")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
+// voltage message, value is voltage in mV
 #define VCC_MESSAGE PSTR("POSMVCC,%i")
+// gyroscope x,y,z axis
 #define GYRO_MESSAGE PSTR("POSMGYR,%i,%i,%i")
+// accelerator, x,y,z axis
 #define ACC_MESSAGE PSTR("POSMACC,%i,%i,%i")
+// timestamp in format hh:mm:ss.SSS
 #define TIMESTAMP PSTR("%02d:%02d:%02d.%03u;")
+// seatalk start, the datagram follows in hex
 #define SEATALK_NMEA_MESSAGE PSTR("POSMSK,")
 #define MAX_NMEA_BUFFER 80
 #define DATA_FILENAME PSTR("data0000.dat")
