@@ -1,8 +1,8 @@
 /**
 * here all NMEA messages are defined
 */
-#define VERSION PSTR("V 0.1.11")
-#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.11")
+#define VERSION PSTR("V 0.1.12")
+#define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.12")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
 // voltage message, value is voltage in mV
 #define VCC_MESSAGE PSTR("POSMVCC,%i")
@@ -18,5 +18,9 @@
 #define DATA_FILENAME PSTR("data0000.dat")
 #define CONFIG_FILENAME PSTR("config.dat")
 #define CNF_FILENAME PSTR("oseamlog.cnf")
+
+#define CHANNEL_A_IDENTIFIER 'A'
+#define CHANNEL_B_IDENTIFIER 'B'
+#define CHANNEL_I_IDENTIFIER 'I'
 
 

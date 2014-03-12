@@ -2,8 +2,6 @@
 #define doOutputGyro
 //#define debug
 //#define freemem
-//#define noWrite
-//#define devmode
 
 #ifdef freemem
 #include <MemoryFree.h>
@@ -28,8 +26,8 @@
 #include "EEPROMStruct.h"
 #include "osmfunctions.c"
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.9
- Copyright (c) 2013 Wilfried Klaas.  All right reserved.
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.12
+ Copyright (c) 2014 Wilfried Klaas.  All right reserved.
 
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
@@ -73,6 +71,8 @@
 
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card.
  */
+// WKLA 20140123 V0.1.12
+// - every minutte the logger will flush the file.
 // WKLA 20140123 V0.1.10
 // - selftest enhanced
 // WKLA 20131123 V0.1.9
@@ -124,7 +124,7 @@ boolean error = false;
 MPU6050 accelgyro (MPU6050_ADDRESS_AD0_LOW);
 #endif
 
-byte index_a, index_b;
+byte indexA, indexB;
 
 char filename[13];
 unsigned long lastMillis;
@@ -132,17 +132,12 @@ unsigned long vesselID;
 int normVoltage;
 
 void setup() {
-  index_a = 0;
-  index_b = 0;
+  indexA = 0;
+  indexB = 0;
   initDebug();
 
   // prints title with ending line break
   dbgOutLn(F("OpenSeaMap Datalogger"));
-#ifdef debug
-#ifdef devmode
-  dbgOutLn(F("Devmode"));
-#endif
-#endif
 #ifndef debug
 #ifdef freemem
   Serial.begin(4800);
@@ -196,17 +191,15 @@ void setup() {
   LEDAllOff();
 
   // just waiting 30 seconds for cap loading...
-#ifndef devmode
   LEDAllOff();
   waitCapLoad();
   LEDOn(LED_POWER);
-#endif
 
   // loading default parameters, if config file is present. Then init all serial communications
   LEDOn(LED_RX_A);
   dbgOutLn(F("Init NMEA"));
   getParameters();
-  
+
   // just init the gyro again (because of the possible drop of the 3V3 voltage.
   LEDOn(LED_RX_B);
   initGyro();
@@ -215,7 +208,7 @@ void setup() {
 }
 
 /**
- * Just waiting 30 sec for loading the Goldcap, befor we start operation. 
+ * Just waiting 30 sec for loading the Goldcap, befor we start operation.
  **/
 inline void waitCapLoad() {
   dbgOutLn(F("CAP-load"));
@@ -237,8 +230,8 @@ inline void waitCapLoad() {
 /**
  * Selftest of the unit. First we "test" the supply. LED Green.
  * Than we switch on the 3V3 supply. LED RX A (first LED in RJ45)
- * Than we test the gyro. LED RX B (second LED in RJ45) 
- * If everything works fine, after all test all LED's, without the WRITE LED, will be lit. 
+ * Than we test the gyro. LED RX B (second LED in RJ45)
+ * If everything works fine, after all test all LED's, without the WRITE LED, will be lit.
  **/
 inline void selftest() {
   // Power LED on
@@ -264,8 +257,8 @@ inline void selftest() {
 void getParameters() {
   dbgOutLn(F("readconf"));
   strcpy_P(filename, CONFIG_FILENAME);
-  byte baud_a = EEPROM.read(EEPROM_BAUD_A);
-  byte baud_b = EEPROM.read(EEPROM_BAUD_B);
+  byte baudA = EEPROM.read(EEPROM_BAUD_A);
+  byte baudB = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
   byte outputs = EEPROM.read(EEPROM_OUTPUT);
   EEPROM_readStruct(EEPROM_VESSELID, vesselID);
@@ -273,19 +266,19 @@ void getParameters() {
   seatalkActive = false;
 
   dbgOut(F("EEPROM read:"));
-  dbgOut2(baud_a, HEX);
+  dbgOut2(baudA, HEX);
   dbgOut(',');
-  dbgOut2(baud_b, HEX);
+  dbgOut2(baudB, HEX);
   dbgOut(',');
   dbgOut2(seatalk, HEX);
   dbgOut(',');
   dbgOutLn2(outputs, HEX);
 
-  if (baud_a > 0x06) {
-    baud_a = 3;
+  if (baudA > 0x06) {
+    baudA = 3;
   }
-  if (baud_b > 0x04) {
-    baud_b = 3;
+  if (baudB > 0x04) {
+    baudB = 3;
   }
 
   if (seatalk < 0x06) {
@@ -326,7 +319,7 @@ void getParameters() {
             byte baud = readValue - '0';
             dbgOut(F("A baud readed:"));
             dbgOutLn(BAUDRATES[baud]);
-            if (baud != baud_a) {
+            if (baud != baudA) {
               dbgOutLn(F("EEPROM write A:"));
               EEPROM.write(EEPROM_BAUD_A, baud);
             }
@@ -339,17 +332,17 @@ void getParameters() {
                 EEPROM.write(EEPROM_SEATALK, 0);
               }
             }
-            baud_a = baud;
+            baudA = baud;
           }
           if (paramCount == 2) {
             byte baud = readValue - '0';
             dbgOut(F("B baud readed:"));
             dbgOutLn(BAUDRATES[baud]);
-            if (baud != baud_b) {
+            if (baud != baudB) {
               dbgOutLn(F("EEPROM write B:"));
               EEPROM.write(EEPROM_BAUD_B, baud);
             }
-            baud_b = baud;
+            baudB = baud;
           }
           if (paramCount == 3) {
             byte foutputs = readValue - '0';
@@ -390,16 +383,16 @@ void getParameters() {
     outputGyro = (outputs & 0x02) > 0;
   }
 
-  outputParameter(baud_a, baud_b, outputs);
+  outputParameter(baudA, baudB, outputs);
 
-  initSerials(baud_a, baud_b);
+  initSerials(baudA, baudB);
 }
 
 /**
- * writing parameter to oseamlog.cnf file. 
+ * writing parameter to oseamlog.cnf file.
  * So on every sd card you will have the actual parameters of the logger.
  **/
-inline void outputParameter(byte baud_a, byte baud_b, byte outputs) {
+inline void outputParameter(byte baudA, byte baudB, byte outputs) {
   strcpy_P(filename, CNF_FILENAME);
   if (sd.exists(filename)) {
     sd.remove(filename);
@@ -409,27 +402,29 @@ inline void outputParameter(byte baud_a, byte baud_b, byte outputs) {
   if (seatalkActive) {
     dataFile.print('s');
   }
-  dataFile.println(baud_a);
-  dataFile.println(baud_b);
+  dataFile.println(baudA);
+  dataFile.println(baudB);
   dataFile.println(outputs);
   strcpy_P(filename, VERSION);
   dataFile.println(filename);
   dataFile.println(vesselID, HEX);
+  dataFile.println(normVoltage);
+
   dataFile.close();
 }
 
-/** 
- * initialsie the serial communication hardware. 
+/**
+ * initialsie the serial communication hardware.
  * For seatalk we need the 9N1 Protokoll. Otherwise we initialise with 8N1.
  * For seatalk we only have a baudrate of 4800.
- * For NMEA we  can use other. 
+ * For NMEA we  can use other.
  **/
-inline void initSerials(byte baud_a, byte baud_b) {
+inline void initSerials(byte baudA, byte baudB) {
   dbgOutLn(F("Init Searials"));
   word baud = 0;
-  if (baud_a < 0x06) {
+  if (baudA < 0x06) {
 
-    baud = BAUDRATES[baud_a];
+    baud = BAUDRATES[baudA];
 
 #ifdef debug
     if (seatalkActive) {
@@ -443,7 +438,7 @@ inline void initSerials(byte baud_a, byte baud_b) {
     Serial.end();
 
     // init serial channel a
-    if (baud_a > 0) {
+    if (baudA > 0) {
       firstSerial = true;
       // for seatalk we need another initialisation
       if (seatalkActive) {
@@ -458,8 +453,8 @@ inline void initSerials(byte baud_a, byte baud_b) {
 
   // init serial for channel b
   mySerial.end();
-  if (baud_b < 0x04) {
-    baud = BAUDRATES[baud_b];
+  if (baudB < 0x04) {
+    baud = BAUDRATES[baudB];
 
 #ifdef debug
     dbgOut(F("E NB:"));
@@ -478,10 +473,10 @@ inline void initSerials(byte baud_a, byte baud_b) {
  **/
 inline void initGyro() {
   //--- init MPU6050 ---
-  // join I2C bus (I2Cdev library doesn't do this automatically)
+#ifdef doOutputGyro
   dbgOutLn(F("Init I2C"));
 
-#ifdef doOutputGyro
+  // join I2C bus (I2Cdev library doesn't do this automatically)
   Wire.begin();
   // initialize device
   accelgyro.initialize();
@@ -503,34 +498,91 @@ inline void initGyro() {
 /*********************************/
 
 byte fileCount = 0;
-
-#ifdef doOutputGyro
-int16_t ax, ay, az;
-#endif
-
+int ax, ay, az;
 word vcc;
 unsigned long lastW;
-
-#ifdef doOutputVcc
 unsigned long vccTime;
-#endif
-
-unsigned long now, start_a, start_b;
+unsigned long startA, startB;
 
 // the 3 buffers for transfering data.
-byte buffer_a[MAX_NMEA_BUFFER];
-byte buffer_b[MAX_NMEA_BUFFER];
+byte bufferA[MAX_NMEA_BUFFER];
+byte bufferB[MAX_NMEA_BUFFER];
 char linedata[MAX_NMEA_BUFFER];
 char timedata[15];
+
+byte lastFlush = 0;
 
 /**
  * main loop.
  **/
 void loop() {
+  // check LED State
+  long now = millis();
+  checkLEDState(now);
+
+  // read power supply
+  vcc = readVcc();
+  // if the voltage drops below 4V7 we are on Cappower, so we must close all files and wait.
+  if ((vcc < normVoltage) || (digitalRead(SW_STOP) == 0)) {
+    // Alle LED's aus, Strom sparen
+    LEDAllOff();
+
+    if (dataFile.isOpen()) {
+
+      writeVCC();
+
+      stopLogger();
+      dbgOutLn(F("Shutdown detected, datafile closed"));
+    }
+    // Jetzt alle LED's einschalten, damit ordentlich Strom verbraucht wird.
+    LEDAllOn();
+    delay(10000);
+  }
+  else {
+    if (!dataFile.isOpen()) {
+      newFile();
+    }
+
+    testSerialA();
+    testSerialB();
+
+    // der Gyro wird nur jede Sekunde einmal abgefragt
+    //now = millis();
+    if ((now - 1000) > lastMillis) {
+      outputFreeMem('L');
+      lastMillis = now;
+
+      writeGyroData();
+      writeVCC();
+
+      byte nowFlush = (now / 60000L) % 256L;
+      word nowCount = (now / 1000L) / 3600L;
+
+      // testing the needing of a new file
+      if (nowCount > fileCount) {
+        newFile();
+        fileCount++;
+      } else if (nowFlush != lastFlush) {
+        flushFile();
+        lastFlush = nowFlush;
+      }
+    }
+  }
+}
+
+/**
+ * checking the state of all LED's.
+ * On error blink with the power LED (2Hz)
+ * Power LED must be lit
+ * sd write LED musst be unlit, if it's lit more than 100 ms
+ * RX A LED musst be unlit, if it's lit more than 500 ms
+ * RX B LED musst be unlit, if it's lit more than 500 ms
+ **/
+inline void checkLEDState(long now) {
   // if an error occur, just blink with the power LED.
   if (error) {
     dbgOutLn(F("ERROR"));
-    if ((millis() % 500) > 250) {
+    if ((now % 500) > 250) {
       LEDOff(LED_POWER);
     }
     else {
@@ -541,67 +593,18 @@ void loop() {
     LEDOn(LED_POWER);
   }
 
-  // check LED State
-  long now = millis();
   if (now > (lastW + 100)) {
     LEDOff(LED_WRITE);
   }
 
   // reset LED for receiving channel A
-  if (now > (start_a + 500)) {
+  if (now > (startA + 500)) {
     LEDOff(LED_RX_A);
   }
 
   // reset LED for receiving channel B
-  if (now > (start_b + 500)) {
+  if (now > (startB + 500)) {
     LEDOff(LED_RX_B);
-  }
-
-  // read power supply
-  vcc = readVcc();
-  // if the voltage drops below 4V7 we are on Cappower, so we must close all files and wait.
-  if ((vcc < normVoltage) || (digitalRead(SW_STOP) == 0)) {
-    // Alle LED's aus, Strom sparen
-    LEDAllOff();
-
-    if (dataFile.isOpen()) {
-#ifdef doOutputVcc
-      writeVCC();
-#endif
-      stopLogger();
-      dbgOutLn(F("Shutdown detected, datafile closed"));
-    }
-    // Jetzt alle LED's einschalten, damit ordentlich strom verbraucht wird.
-    LEDAllOn();
-    delay(10000);
-  }
-  else {
-    if (!dataFile.isOpen()) {
-      newFile();
-    }
-
-    testFirstSerial();
-    testSecondSerial();
-
-    // der Gyro wird nur jede Sekunde einmal abgefragt
-    //now = millis();
-    if ((now - 1000) > lastMillis) {
-      outputFreeMem('L');
-      lastMillis = now;
-#ifdef doOutputGyro
-      writeGyroData();
-#endif
-#ifdef doOutputVcc
-      writeVCC();
-#endif
-      // testing the needing of a new file
-      if ((now / 3600000) > fileCount) {
-        newFile();
-        fileCount++;
-      } else if ((now / 60000) > fileCount) {
-        flushFile();
-      }
-    }
   }
 }
 
@@ -627,32 +630,32 @@ word readVcc() {
 /**
  * writing vcc data to the sd card.
  **/
-#ifdef doOutputVcc
 inline void writeVCC() {
+#ifdef doOutputVcc
   if (outputVcc) {
     sprintf_P(linedata, VCC_MESSAGE, vcc);
-    writeData(vccTime, 'I', linedata);
+    writeData(vccTime, CHANNEL_I_IDENTIFIER, linedata);
   }
-}
 #endif
+}
 
 /**
  * writing gyro data to the sd card.
  **/
-#ifdef doOutputGyro
 inline void writeGyroData() {
+#ifdef doOutputGyro
   if (outputGyro) {
     unsigned long startTime = millis();
     accelgyro.getRotation(&ax, &ay, &az);
     sprintf_P(linedata, GYRO_MESSAGE, ax, ay, az);
-    writeData(startTime, 'I',  linedata);
+    writeData(startTime, CHANNEL_I_IDENTIFIER,  linedata);
 
     accelgyro.getAcceleration(&ax, &ay, &az);
     sprintf_P(linedata, ACC_MESSAGE, ax, ay, az);
-    writeData(startTime, 'I', linedata);
+    writeData(startTime, CHANNEL_I_IDENTIFIER, linedata);
   }
-}
 #endif
+}
 
 void flushFile() {
   dataFile.close();
@@ -667,7 +670,6 @@ word lastStartNumber = 0;
 void newFile() {
   stopLogger();
   LEDAllOff();
-#ifndef noWrite
   while (!sd.begin(SD_CHIPSELECT, SPI_HALF_SPEED)) {
     dbgOutLn(F("Card failed, or not present, restarting"));
     //    PORTD ^= _BV(LED_WRITE);
@@ -684,8 +686,10 @@ void newFile() {
   int z = 0;
   int e = 0;
   strcpy_P(filename, DATA_FILENAME);
+  LEDAllOff();
 
   for (word i = lastStartNumber + 1; i < 10000; i++) { // create new filename w/ 3 digits 000-999
+    LEDBlink(LED_POWER);
     t = i / 1000;
     filename[4] = t + '0';          // calculates tausends position
     h = (i - (t * 1000)) / 100;
@@ -709,10 +713,10 @@ void newFile() {
       break;                        // leave the loop after finding new filename
     }
   }
-#endif
+
   strcpy_P(linedata, START_MESSAGE);
   dbgOutLn(F("Start"));
-  writeData(millis(), 'I', linedata);          // write data to card
+  writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);          // write data to card
 }
 
 /**
@@ -721,26 +725,26 @@ void newFile() {
 void stopLogger() {
   dbgOutLn(F("close datafile."));
   strcpy_P(linedata, STOP_MESSAGE);
-  writeData(millis(), 'I', linedata);  // write data to card
+  writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
   if (dataFile.isOpen()) {
     dataFile.close();
   }
 }
 
-bool ending1, ending2;
+bool endingA, endingB;
 
 /**
  * testing the first serial connection.
  **/
-void testFirstSerial() {
+void testSerialA() {
   if (firstSerial) {
     outputFreeMem('1');
-    ending1 = false;
-    while ((Serial.available()  > 0) && !ending1) {
+    endingA = false;
+    while ((Serial.available()  > 0) && !endingA) {
       int incomingByte = Serial.read();
       if (incomingByte >= 0) {
-        if (index_a == 0) {
-          start_a = millis();
+        if (indexA == 0) {
+          startA = millis();
         }
         LEDOn(LED_RX_A);
         if (seatalkActive) {
@@ -762,16 +766,16 @@ byte dataLength;
 inline void SeaTalkInputA(int incomingByte) {
   if ((incomingByte & 0x0100) > 0) {
     writeDatagram();
-    ending1 = true;
-    index_a = 0;
-    start_a = millis();
+    endingA = true;
+    indexA = 0;
+    startA = millis();
   }
-  if (index_a == 1) {
+  if (indexA == 1) {
     dataLength = 3 + (incomingByte & 0x0F);
   }
-  if (index_a < MAX_NMEA_BUFFER) {
-    buffer_a[index_a] = (byte) incomingByte;
-    index_a++;
+  if (indexA < MAX_NMEA_BUFFER) {
+    bufferA[indexA] = (byte) incomingByte;
+    indexA++;
   }
 }
 
@@ -779,19 +783,19 @@ inline void SeaTalkInputA(int incomingByte) {
  * writing seatalk datagram.
  **/
 inline void writeDatagram() {
-  if (index_a == dataLength) {
+  if (indexA == dataLength) {
     dbgOutLn(SEATALK_NMEA_MESSAGE);
     strcpy(linedata, SEATALK_NMEA_MESSAGE);
 
-    for (byte i = 0; i < index_a; i++) {
-      byte value = buffer_a[i];
+    for (byte i = 0; i < indexA; i++) {
+      byte value = bufferA[i];
       byte c = (value & 0xF0) >> 4;
       strcat(linedata, convertNibble2Hex(c));
       c = value & 0x0F;
       strcat(linedata, convertNibble2Hex(c));
     }
-    writeData(start_a, 'A', linedata);
-    index_a = 0;
+    writeData(startA, CHANNEL_A_IDENTIFIER, linedata);
+    indexA = 0;
   }
 }
 
@@ -801,38 +805,38 @@ inline void writeDatagram() {
 inline void NMEAInputA(int incomingByte) {
   byte in = lowByte(incomingByte);
   if (in == 0x0A) {
-    ending1 = true;
+    endingA = true;
   }
   else {
     if (in != 0x0D) {
-      buffer_a[index_a] = (byte) in;
-      index_a++;
+      bufferA[indexA] = (byte) in;
+      indexA++;
     }
   }
-  if (ending1 || (index_a >= MAX_NMEA_BUFFER)) {
-    if (index_a > 0) {
+  if (endingA || (indexA >= MAX_NMEA_BUFFER)) {
+    if (indexA > 0) {
 #ifdef debug
-      if (index_a >= MAX_NMEA_BUFFER) {
+      if (indexA >= MAX_NMEA_BUFFER) {
         Serial.print('B');
       }
       Serial.print(F("A:"));
-      if (index_a > 6) {
-        Serial.write(buffer_a, 6);
+      if (indexA > 6) {
+        Serial.write(bufferA, 6);
       }
       else {
-        Serial.write(buffer_a, index_a);
+        Serial.write(bufferA, indexA);
       }
       Serial.println();
 #endif
       if (dataFile.isOpen()) {
         writeLEDOn();
-        writeTimeStamp(start_a);
-        writeChannelMarker('A');
-        dataFile.write(buffer_a, index_a);
+        writeTimeStamp(startA);
+        writeChannelMarker(CHANNEL_A_IDENTIFIER);
+        dataFile.write(bufferA, indexA);
         dataFile.println();
         //        writeLEDOff();
       }
-      index_a = 0;
+      indexA = 0;
     }
   }
 }
@@ -840,15 +844,15 @@ inline void NMEAInputA(int incomingByte) {
 /**
  * testing the second serial connection.
  **/
-void testSecondSerial() {
+void testSerialB() {
   if (secondSerial) {
     outputFreeMem('2');
-    ending2 = false;
-    while ((mySerial.available()  > 0) && !ending2) {
+    endingB = false;
+    while ((mySerial.available()  > 0) && !endingB) {
       int incomingByte = mySerial.read();
       if (incomingByte >= 0) {
-        if (index_b == 0) {
-          start_b = millis();
+        if (indexB == 0) {
+          startB = millis();
         }
         LEDOn(LED_RX_B);
         NMEAInputB(incomingByte);
@@ -863,38 +867,38 @@ void testSecondSerial() {
 inline void NMEAInputB(int incomingByte) {
   byte in = lowByte(incomingByte);
   if (in == 0x0A) {
-    ending2 = true;
+    endingB = true;
   }
   else {
     if (in != 0x0D) {
-      buffer_b[index_b] = (byte) in;
-      index_b++;
+      bufferB[indexB] = (byte) in;
+      indexB++;
     }
   }
-  if (ending2 || (index_b >= MAX_NMEA_BUFFER)) {
-    if (index_b > 0) {
+  if (endingB || (indexB >= MAX_NMEA_BUFFER)) {
+    if (indexB > 0) {
 #ifdef debug
-      if (index_b >= MAX_NMEA_BUFFER) {
+      if (indexB >= MAX_NMEA_BUFFER) {
         Serial.print('B');
       }
       Serial.print(F("B:"));
-      if (index_b > 6) {
-        Serial.write(buffer_b, 6);
+      if (indexB > 6) {
+        Serial.write(bufferB, 6);
       }
       else {
-        Serial.write(buffer_b, index_b);
+        Serial.write(bufferB, indexB);
       }
       Serial.println();
 #endif
       if (dataFile.isOpen()) {
         writeLEDOn();
-        writeTimeStamp(start_b);
-        writeChannelMarker('B');
-        dataFile.write(buffer_b, index_b);
+        writeTimeStamp(startB);
+        writeChannelMarker(CHANNEL_B_IDENTIFIER);
+        dataFile.write(bufferB, indexB);
         dataFile.println();
         //        writeLEDOff();
       }
-      index_b = 0;
+      indexB = 0;
     }
   }
 }
