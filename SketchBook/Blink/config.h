@@ -36,3 +36,5 @@ const String vccString = "VCC:";
 
 const char CONFIG_FILE[] = "config.dat";
 
+const word EEPROM_VERSION = E2END - 2;
+

@@ -132,6 +132,14 @@ unsigned long vesselID;
 int normVoltage;
 
 void setup() {
+  
+  word firmVersion;
+  EEPROM_readStruct(EEPROM_VERSION, firmVersion);
+  if (firmVersion != VERSIONNUMBER) {
+    firmVersion = VERSIONNUMBER;
+    EEPROM_writeStruct(EEPROM_VERSION, firmVersion);
+  }
+  
   indexA = 0;
   indexB = 0;
   initDebug();
@@ -531,6 +539,8 @@ void loop() {
 
       writeVCC();
 
+      strcpy_P(linedata, REASON_VCC_MESSAGE);
+      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       stopLogger();
       dbgOutLn(F("Shutdown detected, datafile closed"));
     }
@@ -540,6 +550,8 @@ void loop() {
   }
   else {
     if (!dataFile.isOpen()) {
+      strcpy_P(linedata, REASON_NODATA_MESSAGE);
+      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       newFile();
     }
 
@@ -560,6 +572,8 @@ void loop() {
 
       // testing the needing of a new file
       if (nowCount > fileCount) {
+        strcpy_P(linedata, REASON_TIME_MESSAGE);
+        writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
         newFile();
         fileCount++;
       } else if (nowFlush != lastFlush) {

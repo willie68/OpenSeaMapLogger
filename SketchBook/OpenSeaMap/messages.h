@@ -1,9 +1,14 @@
 /**
 * here all NMEA messages are defined
 */
+#define VERSIONNUMBER 12
 #define VERSION PSTR("V 0.1.12")
 #define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.12")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
+#define REASON_TIME_MESSAGE PSTR("POSMSO,Reason: times up")
+#define REASON_NODATA_MESSAGE PSTR("POSMSO,Reason: no data file")
+#define REASON_VCC_MESSAGE PSTR("POSMSO,Reason: supply low")
+
 // voltage message, value is voltage in mV
 #define VCC_MESSAGE PSTR("POSMVCC,%i")
 // gyroscope x,y,z axis
@@ -22,5 +27,4 @@
 #define CHANNEL_A_IDENTIFIER 'A'
 #define CHANNEL_B_IDENTIFIER 'B'
 #define CHANNEL_I_IDENTIFIER 'I'
-
 

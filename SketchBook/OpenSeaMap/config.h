@@ -44,3 +44,5 @@ const word EEPROM_SEATALK = 0x0012;
 const word EEPROM_OUTPUT = 0x0013;
 const word EEPROM_VESSELID = 0x0014;// (-17)
 
+const word EEPROM_VERSION = E2END - 2;
+
