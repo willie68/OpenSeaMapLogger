@@ -6,11 +6,12 @@
 #define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.12")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
 #define REASON_TIME_MESSAGE PSTR("POSMSO,Reason: times up")
-#define REASON_NODATA_MESSAGE PSTR("POSMSO,Reason: no data file")
+//#define REASON_NODATA_MESSAGE PSTR("POSMSO,Reason: no data file")
 #define REASON_VCC_MESSAGE PSTR("POSMSO,Reason: supply low")
+#define REASON_SWITCH_MESSAGE PSTR("POSMSO,Reason: stop switch")
 
 // voltage message, value is voltage in mV
-#define VCC_MESSAGE PSTR("POSMVCC,%i")
+#define VCC_MESSAGE PSTR("POSMVCC,%i,%i")
 // gyroscope x,y,z axis
 #define GYRO_MESSAGE PSTR("POSMGYR,%i,%i,%i")
 // accelerator, x,y,z axis

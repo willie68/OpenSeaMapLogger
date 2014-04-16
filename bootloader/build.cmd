@@ -1,5 +1,5 @@
 @echo off
-c:
+E:
 rem cd \E-Platte\dropbox\Elektronik\Arduino\projekte\MCSDepthLogger\Software\OpenSeaMapLogger\bootloader\2boots\
 cd avr_boot-master\
 rem cd pfboot\

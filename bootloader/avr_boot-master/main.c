@@ -102,7 +102,7 @@ void checkProgram() {
 	
     WORD flashver = eeprom_read_word((const uint16_t *)E2END - 1);
 	if (flashver > 999) {
-		flashver = 12;
+		flashver = 9;
 	}
 	BYTE y, tmp;
 	WORD x;

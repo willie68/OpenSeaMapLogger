@@ -73,37 +73,40 @@
  */
 // WKLA 20140123 V0.1.12
 // - every minutte the logger will flush the file.
+// - writing version number to eeprom for FAT32 Bootloader
+// - new stop message with reason why logger creates a new file
+// - calculating the right stop voltage
 // WKLA 20140123 V0.1.10
 // - selftest enhanced
 // WKLA 20131123 V0.1.9
-// - VesselID ins EEPROM
+// - VesselID into EEPROM
 // - New initialise section for better factory tests
 // WKLA 20131120 V0.1.8
-// - 30 Sekunden warten, bis Logger startet
+// - wait 30 seconds for logger start
 // WKLA 20131120 V0.1.7
-// - Gyro und VCC per configdatei wählbar machen
-// - Datei mit den aktuellen Einstellungen auf SD schreiben
+// - making gyro and vcc messages selectable with settings
+// - writing the actual settings into a file called OSEAMLOG.CNF
 // WKLA 20131110 V0.1.6
-// - Gyro und VCC per configdatei wählbar machen
+// - debug version
 // WKLA 20131107 V0.1.5
-// - Für rev 3 Boards, kann nun die 3V3 Spannungsversorgung geschaltet werden.
-//   Dieses wird immer beim fehlerhaften Start der SD Karte gemacht. Für rev 2
-//   und rev 1 Board hat das Verhalten keinen Einfluss.
+// - for rev 3 boards now you can switch the 3V3 supply. 
+//   So you can reset the sd card without user interaction.
+//   For rev2 and rev1 boards this option has no impact-
 // WKLA 20131101 V0.1.4
-// - Bug in Config Datei lesen behoben.
+// - Bug in reading config file fixed.
 // WKLA 20131029 V0.1.3
-// - Testen auf freien Platz
+// - testing free memory
 // WKLA 20131028 V0.1.2
-// - EEPROM für Konfiguration
+// - saving settings into EEPROM
 // WKLA 20131027 V0.0.3
-// - Umstellung auf AltSoftSerial
+// - changing to AltSoftSerial
 // WKLA 20131026
-// - diverse Änderungen wegen Speichervervrauch
-// - 9N1 Protokoll für Seatalk
-// - Seatalk implementierung
-// - Umstellung auf SdFat Bibliothek
+// - changes according to used memory
+// - implementing 9N1 protocoll for seatalk
+// - implementing seatalk protokoll
+// - changing to SdFat library
 // WKLA 20131010
-// - Prüfsumme für Daten eingebaut.
+// - implemeting crc for own data.
 
 SdFat sd;
 SdFile dataFile;
@@ -132,14 +135,14 @@ unsigned long vesselID;
 int normVoltage;
 
 void setup() {
-  
+
   word firmVersion;
   EEPROM_readStruct(EEPROM_VERSION, firmVersion);
   if (firmVersion != VERSIONNUMBER) {
     firmVersion = VERSIONNUMBER;
     EEPROM_writeStruct(EEPROM_VERSION, firmVersion);
   }
-  
+
   indexA = 0;
   indexB = 0;
   initDebug();
@@ -538,8 +541,11 @@ void loop() {
     if (dataFile.isOpen()) {
 
       writeVCC();
-
-      strcpy_P(linedata, REASON_VCC_MESSAGE);
+      if (vcc < normVoltage) {
+        strcpy_P(linedata, REASON_VCC_MESSAGE);
+      } else {
+        strcpy_P(linedata, REASON_SWITCH_MESSAGE);
+      }
       writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       stopLogger();
       dbgOutLn(F("Shutdown detected, datafile closed"));
@@ -550,8 +556,8 @@ void loop() {
   }
   else {
     if (!dataFile.isOpen()) {
-      strcpy_P(linedata, REASON_NODATA_MESSAGE);
-      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
+//      strcpy_P(linedata, REASON_NODATA_MESSAGE);
+//      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       newFile();
     }
 
@@ -647,7 +653,7 @@ word readVcc() {
 inline void writeVCC() {
 #ifdef doOutputVcc
   if (outputVcc) {
-    sprintf_P(linedata, VCC_MESSAGE, vcc);
+    sprintf_P(linedata, VCC_MESSAGE, vcc, normVoltage);
     writeData(vccTime, CHANNEL_I_IDENTIFIER, linedata);
   }
 #endif
