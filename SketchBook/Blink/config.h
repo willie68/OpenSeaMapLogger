@@ -7,6 +7,10 @@ const byte SD_CHIPSELECT = 10;
 const int BAUDRATES[] = {
   0, 1200, 2400, 4800, 9600, 19200, 38400
 };
+
+// Activeating 3V3 Supply
+const byte SUPPLY_3V3 = 2;
+
 // NMEA 0183 Port B
 const byte NMEA_B_RX = 8;
 const byte NMEA_B_TX = 9;
@@ -31,4 +35,6 @@ const int VCC_GOLDCAP = 4600;
 const String vccString = "VCC:";
 
 const char CONFIG_FILE[] = "config.dat";
+
+const word EEPROM_VERSION = E2END - 2;
 

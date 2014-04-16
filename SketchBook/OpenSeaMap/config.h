@@ -30,7 +30,7 @@ const byte LED_RX_A = 4; // PD4
 const byte SW_STOP = 3; // PD3
 
 // Voltagevalue for shutdown
-const int VCC_GOLDCAP = 4600;
+const int VCC_GOLDCAP = 200;
 
 // sopme debug strings
 const String vccString = "VCC:";
@@ -43,4 +43,6 @@ const word EEPROM_BAUD_B = 0x0011;
 const word EEPROM_SEATALK = 0x0012;
 const word EEPROM_OUTPUT = 0x0013;
 const word EEPROM_VESSELID = 0x0014;// (-17)
+
+const word EEPROM_VERSION = E2END - 2;
 
