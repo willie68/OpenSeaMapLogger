@@ -26,7 +26,7 @@
 #include "EEPROMStruct.h"
 #include "osmfunctions.c"
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.12
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.14
  Copyright (c) 2014 Wilfried Klaas.  All right reserved.
 
  This program is free software; you can redistribute it and/or
@@ -71,7 +71,9 @@
 
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card.
  */
-// WKLA 20140123 V0.1.12
+// WKLA 20140512
+// - vesselid in methode body to sacve ram
+// WKLA 20140416 V0.1.12
 // - every minutte the logger will flush the file.
 // - writing version number to eeprom for FAT32 Bootloader
 // - new stop message with reason why logger creates a new file
@@ -89,7 +91,7 @@
 // WKLA 20131110 V0.1.6
 // - debug version
 // WKLA 20131107 V0.1.5
-// - for rev 3 boards now you can switch the 3V3 supply. 
+// - for rev 3 boards now you can switch the 3V3 supply.
 //   So you can reset the sd card without user interaction.
 //   For rev2 and rev1 boards this option has no impact-
 // WKLA 20131101 V0.1.4
@@ -131,7 +133,6 @@ byte indexA, indexB;
 
 char filename[13];
 unsigned long lastMillis;
-unsigned long vesselID;
 int normVoltage;
 
 void setup() {
@@ -272,6 +273,7 @@ void getParameters() {
   byte baudB = EEPROM.read(EEPROM_BAUD_B);
   byte seatalk = EEPROM.read(EEPROM_SEATALK);
   byte outputs = EEPROM.read(EEPROM_OUTPUT);
+  unsigned long vesselID = 0;
   EEPROM_readStruct(EEPROM_VESSELID, vesselID);
 
   seatalkActive = false;
@@ -394,7 +396,7 @@ void getParameters() {
     outputGyro = (outputs & 0x02) > 0;
   }
 
-  outputParameter(baudA, baudB, outputs);
+  outputParameter(baudA, baudB, outputs, vesselID);
 
   initSerials(baudA, baudB);
 }
@@ -403,7 +405,7 @@ void getParameters() {
  * writing parameter to oseamlog.cnf file.
  * So on every sd card you will have the actual parameters of the logger.
  **/
-inline void outputParameter(byte baudA, byte baudB, byte outputs) {
+inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long vesselID) {
   strcpy_P(filename, CNF_FILENAME);
   if (sd.exists(filename)) {
     sd.remove(filename);
@@ -556,8 +558,8 @@ void loop() {
   }
   else {
     if (!dataFile.isOpen()) {
-//      strcpy_P(linedata, REASON_NODATA_MESSAGE);
-//      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
+      //      strcpy_P(linedata, REASON_NODATA_MESSAGE);
+      //      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       newFile();
     }
 
@@ -677,6 +679,19 @@ inline void writeGyroData() {
 #endif
 }
 
+void outputConfig() {
+  unsigned long startTime = millis();
+  byte baudA = EEPROM.read(EEPROM_BAUD_A);
+  byte baudB = EEPROM.read(EEPROM_BAUD_B);
+  byte seatalk = EEPROM.read(EEPROM_SEATALK);
+  byte outputs = EEPROM.read(EEPROM_OUTPUT);
+  unsigned long vesselID = 0;
+  EEPROM_readStruct(EEPROM_VESSELID, vesselID);
+
+  sprintf_P(linedata, CONFIG_MESSAGE, baudA, baudB, seatalk, outputs, vesselID);
+  writeData(startTime, CHANNEL_I_IDENTIFIER,  linedata);
+}
+
 void flushFile() {
   dataFile.close();
   dataFile.open(filename, O_RDWR | O_APPEND | O_AT_END);
@@ -737,6 +752,7 @@ void newFile() {
   strcpy_P(linedata, START_MESSAGE);
   dbgOutLn(F("Start"));
   writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);          // write data to card
+  outputConfig();
 }
 
 /**

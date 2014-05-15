@@ -4,6 +4,7 @@
 #define VERSIONNUMBER 12
 #define VERSION PSTR("V 0.1.12")
 #define START_MESSAGE PSTR("POSMST,Start NMEA Logger,V 0.1.12")
+#define CONFIG_MESSAGE PSTR("POSMCFG,%u,%u,%u,%u,%x")
 #define STOP_MESSAGE PSTR("POSMSO,Stop NMEA Logger")
 #define REASON_TIME_MESSAGE PSTR("POSMSO,Reason: times up")
 //#define REASON_NODATA_MESSAGE PSTR("POSMSO,Reason: no data file")
