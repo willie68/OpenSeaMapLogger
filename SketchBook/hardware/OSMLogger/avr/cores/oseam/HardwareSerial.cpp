@@ -516,9 +516,9 @@ int HardwareSerial::peek(void)
     if (_nineBitMode) {
       unsigned char index = getIndex(_buffer->rx_tail);
       unsigned char offset = getOffset(_buffer->rx_tail);
-	  unsigned char nb = _buffer->rx_buffer[index] & (1<<(offset));
+	  unsigned char nb = _buffer->nrx_buffer[index] & (1<<(offset));
 	  if ( nb > 0) {
-	    c |= _BV(9);
+	    c |= _BV(8);
 	  }
 	}
     return c;
@@ -535,9 +535,9 @@ int HardwareSerial::read(void)
     if (_nineBitMode) {
       unsigned char index = getIndex(_buffer->rx_tail);
       unsigned char offset = getOffset(_buffer->rx_tail);
-	  unsigned char nb = _buffer->rx_buffer[index] & (1<<(offset));
+	  unsigned char nb = _buffer->nrx_buffer[index] & (1<<(offset));
       if ( nb > 0) {
-	    c |= _BV(9);
+	    c |= _BV(8);
 	  }
 	}
     _buffer->rx_tail = (unsigned int)(_buffer->rx_tail + 1) % SERIAL_RX_BUFFER_SIZE;
