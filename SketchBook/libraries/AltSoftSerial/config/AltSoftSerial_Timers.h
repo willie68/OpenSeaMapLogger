@@ -1,3 +1,25 @@
+/* An Alternative Software Serial Library
+ * http://www.pjrc.com/teensy/td_libs_AltSoftSerial.html
+ * Copyright (c) 2014 PJRC.COM, LLC, Paul Stoffregen, paul@pjrc.com
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #if defined(ALTSS_USE_TIMER1)
   #define CONFIG_TIMER_NOPRESCALE()	(TIMSK1 = 0, TCCR1A = 0, TCCR1B = (1<<ICNC1) | (1<<CS10))
@@ -101,6 +123,52 @@
   #define CAPTURE_INTERRUPT		TIMER5_CAPT_vect
   #define COMPARE_A_INTERRUPT		TIMER5_COMPA_vect
   #define COMPARE_B_INTERRUPT		TIMER5_COMPB_vect
+
+
+#elif defined(ALTSS_USE_FTM0)
+  // CH5 = input capture (input, pin 20)
+  // CH6 = compare a     (output, pin 21)
+  // CH0 = compare b     (input timeout)
+  #define CONFIG_TIMER_NOPRESCALE()	FTM0_SC = 0; FTM0_CNT = 0; FTM0_MOD = 0xFFFF; \
+					FTM0_SC = FTM_SC_CLKS(1) | FTM_SC_PS(0); \
+					digitalWriteFast(21, HIGH); \
+					NVIC_SET_PRIORITY(IRQ_FTM0, 48); \
+					NVIC_ENABLE_IRQ(IRQ_FTM0);
+  #define CONFIG_TIMER_PRESCALE_8()	FTM0_SC = 0; FTM0_CNT = 0; FTM0_MOD = 0xFFFF; \
+					FTM0_SC = FTM_SC_CLKS(1) | FTM_SC_PS(3); \
+					digitalWriteFast(21, HIGH); \
+					NVIC_SET_PRIORITY(IRQ_FTM0, 48); \
+					NVIC_ENABLE_IRQ(IRQ_FTM0);
+  #define CONFIG_MATCH_NORMAL()		(FTM0_C6SC = 0)
+  #define CONFIG_MATCH_TOGGLE()		(FTM0_C6SC = (FTM0_C6SC & 0xC3) | 0x14)
+  #define CONFIG_MATCH_CLEAR()		(FTM0_C6SC = (FTM0_C6SC & 0xC3) | 0x18)
+  #define CONFIG_MATCH_SET()		(FTM0_C6SC = (FTM0_C6SC & 0xC3) | 0x1C)
+  #define CONFIG_CAPTURE_FALLING_EDGE()	(FTM0_C5SC = (FTM0_C5SC & 0xC3) | 0x08)
+  #define CONFIG_CAPTURE_RISING_EDGE()	(FTM0_C5SC = (FTM0_C5SC & 0xC3) | 0x04)
+  #define ENABLE_INT_INPUT_CAPTURE()	FTM0_C5SC = 0x48; \
+					CORE_PIN20_CONFIG = PORT_PCR_MUX(4)|PORT_PCR_PE|PORT_PCR_PS
+  #define ENABLE_INT_COMPARE_A()	FTM0_C6SC |= 0x40; \
+					CORE_PIN21_CONFIG = PORT_PCR_MUX(4)|PORT_PCR_DSE|PORT_PCR_SRE
+  #define ENABLE_INT_COMPARE_B()	(FTM0_C0SC |= 0x40)
+  #define DISABLE_INT_INPUT_CAPTURE()	FTM0_C5SC &= ~0x40; \
+					CORE_PIN20_CONFIG = PORT_PCR_MUX(1)|PORT_PCR_PE|PORT_PCR_PS
+  #define DISABLE_INT_COMPARE_A()	FTM0_C6SC &= ~0x40; \
+					CORE_PIN21_CONFIG = PORT_PCR_MUX(1)|PORT_PCR_DSE|PORT_PCR_SRE; \
+					digitalWriteFast(21, HIGH)
+  #define DISABLE_INT_COMPARE_B()	(FTM0_C0SC &= ~0x40)
+  #define GET_TIMER_COUNT()		(FTM0_CNT)
+  #define GET_INPUT_CAPTURE()		(FTM0_C5V)
+  #define GET_COMPARE_A()		(FTM0_C6V)
+  #define GET_COMPARE_B()		(FTM0_C0V)
+  #define SET_COMPARE_A(val)		(FTM0_C6V = val)
+  #define SET_COMPARE_B(val)		(FTM0_C0V = val)
+  #define CAPTURE_INTERRUPT		altss_capture_interrupt
+  #define COMPARE_A_INTERRUPT		altss_compare_a_interrupt
+  #define COMPARE_B_INTERRUPT		altss_compare_b_interrupt
+  #ifdef ISR
+  #undef ISR
+  #endif
+  #define ISR(f) static void f (void)
 
 
 #endif

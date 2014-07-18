@@ -32,17 +32,22 @@ const byte SW_STOP = 3; // PD3
 // Voltagevalue for shutdown
 const int VCC_GOLDCAP = 200;
 
+const long GOLDCAP_LOADING_TIME = 30000L;
 // sopme debug strings
 const String vccString = "VCC:";
 
 const char CONFIG_FILE[] = "config.dat";
 
-
+// EEPROM storage positions
 const word EEPROM_BAUD_A = 0x0010;
 const word EEPROM_BAUD_B = 0x0011;
 const word EEPROM_SEATALK = 0x0012;
 const word EEPROM_OUTPUT = 0x0013;
-const word EEPROM_VESSELID = 0x0014;// (-17)
+const word EEPROM_VESSELID = 0x0014;// (-17) 4 bytes
+const word EEPROM_BOOTLOADER_VERSION = 0x0019;// 1 byte
 
 const word EEPROM_VERSION = E2END - 2;
+
+// constants of the differet bootloader versions
+const word BOOTLOADER_2_CONST = 0x2345;
 

@@ -1,7 +1,17 @@
+// define for the possibility of output of vcc messages
 #define doOutputVcc
+
+// define for the possibility of output of gyro messages
 #define doOutputGyro
+
+// define for the output of debug messages on serial 1
 //#define debug
+
+// define for output of memory messages to debug channel (so debug must be defined.)
 //#define freemem
+
+// checking a NMEA datagram before writing, if ok, channel LED will lite up.
+#define checkNMEA
 
 #ifdef freemem
 #include <MemoryFree.h>
@@ -25,8 +35,12 @@
 #include <EEPROM.h>
 #include "EEPROMStruct.h"
 #include "osmfunctions.c"
+
+#include <avr/pgmspace.h>
+#include <util/crc16.h>
+
 /*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.14
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.15
  Copyright (c) 2014 Wilfried Klaas.  All right reserved.
 
  This program is free software; you can redistribute it and/or
@@ -71,8 +85,17 @@
 
  To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card.
  */
+// WKLA 20140701
+// - rebuild for new 9N1 serial lib
+// - overrun for the time at 18 hours
+// - output config with a new NMEA message
+// - in seatalk mode the baud rate is set to 4800 Baud
+// - option for checking NMEA sectences
+// - some comments for defines
+// - getting the bootloader version
+// - minimize send buffer for alt soft serial
 // WKLA 20140512
-// - vesselid in methode body to sacve ram
+// - vesselid in methode body to save ram
 // WKLA 20140416 V0.1.12
 // - every minutte the logger will flush the file.
 // - writing version number to eeprom for FAT32 Bootloader
@@ -185,8 +208,9 @@ void setup() {
   LEDAllOff();
   LEDOn(LED_POWER);
 
-  // checking the sd card. THere is the possibility, if the voltage drop below 3V but not to 0V
-  // the sd card can struggle. Because of this, we switch of/on the 3V3 Voltage, to make a card reset.
+  // see if the card is present and can be initialized:
+  // checking the sd card. There is the possibility, if the voltage drop below 3V but not to 0V
+  // the sd card can struggle. Because of this, we switch off/on the 3V3 Voltage, to make a card reset.
   while (!sd.begin(SD_CHIPSELECT)) {
     dbgOutLn(F("Card failed, or not present, restarting"));
     // Card reset
@@ -220,12 +244,12 @@ void setup() {
 }
 
 /**
- * Just waiting 30 sec for loading the Goldcap, befor we start operation.
+ * Just waiting some seconds for loading the Goldcap, befor we start operation.
  **/
 inline void waitCapLoad() {
   dbgOutLn(F("CAP-load"));
   // save time for cap loading...
-  lastMillis = millis() + 30000;
+  lastMillis = millis() + GOLDCAP_LOADING_TIME;
   byte count = 0;
   unsigned long sumVoltage = 0;
   while (millis() < lastMillis) {
@@ -249,12 +273,13 @@ inline void selftest() {
   // Power LED on
   LEDOn(LED_POWER);
 
-  // see if the card is present and can be initialized:
+  // switching the 3V3 supply on.
   delay(500);
   LEDOn(LED_RX_A);
   LEDOn(SUPPLY_3V3);
   delay(1000);
 
+  // init the gyro, if needed
   LEDOn(LED_RX_B);
   initGyro();
   delay(1000);
@@ -264,7 +289,7 @@ inline void selftest() {
  * Getting the actual config parameters and configure.
  * first try to get parameters from the EEPROM
  * than try to load the config.dat file from sd card.
- * if exists, load parameters from file and save changed parameters to EEPROM
+ * if file exists, load parameters from file and save changed parameters to EEPROM
  **/
 void getParameters() {
   dbgOutLn(F("readconf"));
@@ -276,6 +301,18 @@ void getParameters() {
   unsigned long vesselID = 0;
   EEPROM_readStruct(EEPROM_VESSELID, vesselID);
 
+  byte bootloaderVersion = EEPROM.read(EEPROM_BOOTLOADER_VERSION);
+  if (bootloaderVersion > 10) {
+    bootloaderVersion = 1;
+    EEPROM.write(EEPROM_BOOTLOADER_VERSION, bootloaderVersion);
+  }
+
+  word crc = CalculateChecksum(0x7E00, 512);
+  if ((crc == BOOTLOADER_2_CONST) && (bootloaderVersion != 2)) {
+    bootloaderVersion = 2;
+    EEPROM.write(EEPROM_BOOTLOADER_VERSION, bootloaderVersion);
+  }
+
   seatalkActive = false;
 
   dbgOut(F("EEPROM read:"));
@@ -286,6 +323,8 @@ void getParameters() {
   dbgOut2(seatalk, HEX);
   dbgOut(',');
   dbgOutLn2(outputs, HEX);
+  dbgOut(',');
+  dbgOutLn2(bootloaderVersion, HEX);
 
   if (baudA > 0x06) {
     baudA = 3;
@@ -396,7 +435,7 @@ void getParameters() {
     outputGyro = (outputs & 0x02) > 0;
   }
 
-  outputParameter(baudA, baudB, outputs, vesselID);
+  outputParameter(baudA, baudB, outputs, vesselID, bootloaderVersion);
 
   initSerials(baudA, baudB);
 }
@@ -405,7 +444,7 @@ void getParameters() {
  * writing parameter to oseamlog.cnf file.
  * So on every sd card you will have the actual parameters of the logger.
  **/
-inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long vesselID) {
+inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long vesselID, byte bootloaderVersion) {
   strcpy_P(filename, CNF_FILENAME);
   if (sd.exists(filename)) {
     sd.remove(filename);
@@ -422,6 +461,7 @@ inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long 
   dataFile.println(filename);
   dataFile.println(vesselID, HEX);
   dataFile.println(normVoltage);
+  dataFile.println(bootloaderVersion);
 
   dataFile.close();
 }
@@ -455,9 +495,8 @@ inline void initSerials(byte baudA, byte baudB) {
       firstSerial = true;
       // for seatalk we need another initialisation
       if (seatalkActive) {
-        Serial.begin(baud, SERIAL_9N1);
-      }
-      else {
+        Serial.begin(4800, SERIAL_9N1);
+      } else {
         Serial.begin(baud, SERIAL_8N1);
       }
     }
@@ -506,6 +545,18 @@ inline void initGyro() {
 #endif
 }
 
+/**
+ * calcualting the 16 bit checksum of a part of the flash memory.
+ **/
+static word CalculateChecksum (word addr, word size) {
+  word crc = ~0;
+  prog_uint8_t* p = (prog_uint8_t*) addr;
+  for (word i = 0; i < size; ++i) {
+    crc = _crc16_update(crc, pgm_read_byte(p++));
+  }
+  return crc;
+}
+
 /*********************************/
 /*           Main part           */
 /*********************************/
@@ -552,21 +603,19 @@ void loop() {
       stopLogger();
       dbgOutLn(F("Shutdown detected, datafile closed"));
     }
-    // Jetzt alle LED's einschalten, damit ordentlich Strom verbraucht wird.
+    // switch on all LED's, to unload the gold cap.
     LEDAllOn();
     delay(10000);
   }
   else {
     if (!dataFile.isOpen()) {
-      //      strcpy_P(linedata, REASON_NODATA_MESSAGE);
-      //      writeData(millis(), CHANNEL_I_IDENTIFIER, linedata);  // write data to card
       newFile();
     }
 
     testSerialA();
     testSerialB();
 
-    // der Gyro wird nur jede Sekunde einmal abgefragt
+    // check the gyro only once in a second
     //now = millis();
     if ((now - 1000) > lastMillis) {
       outputFreeMem('L');
@@ -604,7 +653,7 @@ inline void checkLEDState(long now) {
   // if an error occur, just blink with the power LED.
   if (error) {
     dbgOutLn(F("ERROR"));
-    if ((now % 500) > 250) {
+    if ((now % 500L) > 250) {
       LEDOff(LED_POWER);
     }
     else {
@@ -679,6 +728,9 @@ inline void writeGyroData() {
 #endif
 }
 
+/**
+ * writing config data as NMEA message to the data file
+ **/
 void outputConfig() {
   unsigned long startTime = millis();
   byte baudA = EEPROM.read(EEPROM_BAUD_A);
@@ -687,11 +739,15 @@ void outputConfig() {
   byte outputs = EEPROM.read(EEPROM_OUTPUT);
   unsigned long vesselID = 0;
   EEPROM_readStruct(EEPROM_VESSELID, vesselID);
+  byte bootloaderVersion = EEPROM.read(EEPROM_BOOTLOADER_VERSION);
 
-  sprintf_P(linedata, CONFIG_MESSAGE, baudA, baudB, seatalk, outputs, vesselID);
+  sprintf_P(linedata, CONFIG_MESSAGE, baudA, baudB, seatalk, outputs, vesselID, bootloaderVersion);
   writeData(startTime, CHANNEL_I_IDENTIFIER,  linedata);
 }
 
+/**
+ * flushnig the data file. (Will be calles once a minute)
+ **/
 void flushFile() {
   dataFile.close();
   dataFile.open(filename, O_RDWR | O_APPEND | O_AT_END);
@@ -782,7 +838,9 @@ void testSerialA() {
         if (indexA == 0) {
           startA = millis();
         }
+#ifndef checkNMEA
         LEDOn(LED_RX_A);
+#endif
         if (seatalkActive) {
           SeaTalkInputA(incomingByte);
         }
@@ -865,12 +923,16 @@ inline void NMEAInputA(int incomingByte) {
       Serial.println();
 #endif
       if (dataFile.isOpen()) {
+#ifdef checkNMEA
+        if (checkNMEAData(bufferA)) {
+          LEDOn(LED_RX_A);
+        }
+#endif
         writeLEDOn();
         writeTimeStamp(startA);
         writeChannelMarker(CHANNEL_A_IDENTIFIER);
         dataFile.write(bufferA, indexA);
         dataFile.println();
-        //        writeLEDOff();
       }
       indexA = 0;
     }
@@ -890,7 +952,9 @@ void testSerialB() {
         if (indexB == 0) {
           startB = millis();
         }
+#ifndef checkNMEA
         LEDOn(LED_RX_B);
+#endif
         NMEAInputB(incomingByte);
       }
     }
@@ -927,6 +991,11 @@ inline void NMEAInputB(int incomingByte) {
       Serial.println();
 #endif
       if (dataFile.isOpen()) {
+#ifdef checkNMEA
+        if (checkNMEAData(bufferB)) {
+          LEDOn(LED_RX_B);
+        }
+#endif
         writeLEDOn();
         writeTimeStamp(startB);
         writeChannelMarker(CHANNEL_B_IDENTIFIER);
@@ -940,39 +1009,85 @@ inline void NMEAInputB(int incomingByte) {
 }
 
 /**
+ * checking if the NMEA Data is correct
+ **/
+bool checkNMEAData(byte* myBuffer) {
+  char* data = (char*) myBuffer;
+  if (strlen(data) == 0) {
+    return false;
+  }
+  if (data[0] != '$') {
+    return false;
+  }
+  bool inCrc = false;
+  byte crc = 0;
+  byte fileCrc = 0;
+  byte index = 0;
+  for (uint8_t i = 0; i < strlen(data); i++) {
+    char value = data[i];
+    if ((value < 0x20) || (value > 0x80)) {
+      return false;
+    }
+    if (inCrc) {
+      if (index < 2) {
+        if (value >= '0' && value <= '9') {
+          fileCrc = value - '0';
+        }
+        if (value >= 'A' && value <= 'F') {
+          fileCrc = value - 'A';
+        }
+        if (index == 0) {
+          fileCrc = fileCrc << 4;
+        }
+        index++;
+      }
+    } else {
+      if (value != '*') {
+        crc ^= value;
+      } else {
+        inCrc = true;
+      }
+    }
+  }
+
+  if (fileCrc != crc) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * writing a new logger entry.
  **/
 void writeData(unsigned long startTime, char marker, char* data) {
-  writeTimeStamp(startTime);
-  writeChannelMarker(marker);
-  writeNMEAData(data);
+  if (dataFile.isOpen()) {
+    writeTimeStamp(startTime);
+    writeChannelMarker(marker);
+    writeNMEAData(data);
+  }
 }
 
 /**
  * writing the timestamp.
  **/
 void writeTimeStamp(unsigned long time) {
-  if (dataFile.isOpen()) {
-    word mil = time % 1000;
-    word div = time / 1000;
+  word mil = time % 1000L;
+  long div = time / 1000L;
 
-    byte sec = div % 60;
-    byte minute = (div / 60) % 60;
-    byte hour = (div / 3600) % 24;
+  byte sec = div % 60L;
+  byte minute = (div / 60L) % 60L;
+  byte hour = (div / 3600L) % 24L;
 
-    sprintf_P(timedata, TIMESTAMP, hour, minute, sec, mil);
-    dataFile.print(timedata);
-  }
+  sprintf_P(timedata, TIMESTAMP, hour, minute, sec, mil);
+  dataFile.print(timedata);
 }
 
 /**
  * writing the channel marker.
  **/
 void writeChannelMarker(char marker) {
-  if (dataFile.isOpen()) {
-    dataFile.print(marker);
-    dataFile.print(';');
-  }
+  dataFile.print(marker);
+  dataFile.print(';');
 }
 
 /**
@@ -984,15 +1099,13 @@ void writeNMEAData(char* data) {
   for (uint8_t i = 0; i < strlen(data); i++) {
     crc ^= data[i];
   }
-  if (dataFile.isOpen()) {
-    dataFile.write('$');
-    dataFile.print(data);
-    dataFile.write('*');
-    if (crc < 16) {
-      dataFile.write('0');
-    }
-    dataFile.println(crc, HEX);
+  dataFile.write('$');
+  dataFile.print(data);
+  dataFile.write('*');
+  if (crc < 16) {
+    dataFile.write('0');
   }
+  dataFile.println(crc, HEX);
 #ifdef debug
   dbgOut('$');
   dbgOut(data);

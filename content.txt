@@ -1,6 +1,6 @@
 Hardware
 For building the hardware you need an Arduino Uno R3, a sd card adapter, a mpu6050 breadboard pcb, 3 opto coupler circuts. (See schematics in Hardware folder)
-Not all Features of the software can be  used on this development platform. But for testing it's allright.
+Not all Features of the software can be used on this development platform. But for testing it's allright.
 
 Software
 The system is build on a arduino ide with version 1.5.x. The needed hardware description for the original board, and all needed libraries are in the sketchbook folder. So you simply have to set the sketchbook in the ide to the checkout sketchbook folder and restart the IDE.
@@ -20,6 +20,9 @@ Sketchbook
   
   Blink
     a simple Blink programm for the OSeaM Board.
+
+  calculateBootloaderCRC
+    calculating the crc checksum for the bootloader of the OSeaM Board.
   
   hardware
     hardware definition and core files of the OSeaM board. Due to a bug to the arduino IDE you must copy the bootloader/OSeaM folder to the <arduino>/hardware/arduino/avr/bootloaders folder. (With the OSeaM subfolder)
@@ -27,6 +30,12 @@ Sketchbook
   libraries
     all needed libraries for building the logger.
 
+  nBit_read
+    Testprogram receiving serial data with the 9N1 protokoll needed for seatalk
+	
+  nBit_Send
+    Testprogram sending serial data with the 9N1 protokoll needed for seatalk 
+  
   OpenSeaMap
     the main project of the logger
 
