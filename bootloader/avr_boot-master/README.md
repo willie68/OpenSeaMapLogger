@@ -3,7 +3,8 @@ avr_boot
 
 SD card Bootloader for atmega processors
 
-modified by Wilfried Klaas for the OSeaM Hardware Logger.
+based on the bootloader example from petitfilesystem (http://elm-chan.org/fsw/ff/00index_p.html)
+modified by Wilfried Klaas for the MCSDepthLogger Hardware Logger.
 - desired platform ATMega328P with attached SD Card standard connection (MOSI, MISO...)
 - names of firmware files will be OSMFWxxx.BIN, will be programmed, if xxx > EEPROM-Version number. 
   If no EEPROM Version number is present 12 is the magic number.

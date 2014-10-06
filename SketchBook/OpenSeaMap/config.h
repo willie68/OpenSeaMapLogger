@@ -49,5 +49,5 @@ const word EEPROM_BOOTLOADER_VERSION = 0x0019;// 1 byte
 const word EEPROM_VERSION = E2END - 2;
 
 // constants of the differet bootloader versions
-const word BOOTLOADER_2_CONST = 0x2345;
+const word BOOTLOADER_2_CONST = 0xB7FD;
 

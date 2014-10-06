@@ -1,3 +1,102 @@
+
+/*
+ OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.15
+ Copyright (c) 2014 Wilfried Klaas.  All right reserved.
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
+
+ This library is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public
+ License along with this library; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ 
+ This program is a simple logger, which will take the input from 2 serial
+ devices with the NMEA 0183 protokoll and write it down to a sd card.
+ Additionally it will take the input from a onboard gyro device (MPU 6050)
+ and write it into the same file. To every record it will add the timestamp
+ of the arduino, so that the after processing process will determine the exact
+ time of the event. (Like the GPS time).
+ On startup and every hour the system will generate a new file.
+ The programm can determine the shutdown and close all files.
+
+ On the sd card can be a file named config.dat.
+ First line is the baudrate of the NMEA A Port,
+ Second line is the baudrate of the NMEA B Port
+
+ If there ist no file, the default value will be used. Which is, both serial are active with
+ standart NMEA0183 protokoll (4800, 8N1);
+ 0 = port is not active
+ 1 = 1200 Baud
+ 2 = 2400 Baud
+ 3 = 4800 Baud * Default
+ 4 = 9600 Baud (only NMEA A)
+ 5 = 19200 Baud (only NMEA A)
+ 6 = 38400 Baud (only NMEA A)
+ 
+ for the first serial you can activate the SEATALK Protokoll, which has an other format.
+ If you add an s before the baud value, seatalk protokoll will be activated.
+
+ To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card.
+ */
+// WKLA 20141006 V0.1.15
+// - adding right bootloader constant
+// - some testing with and without NMEA check
+// WKLA 20140701 
+// - rebuild for new 9N1 serial lib
+// - overrun for the time at 18 hours
+// - output config with a new NMEA message
+// - in seatalk mode the baud rate is set to 4800 Baud
+// - option for checking NMEA sectences
+// - some comments for defines
+// - getting the bootloader version
+// - new version of AltSoftSerial
+// - minimize send buffer for alt soft serial
+// WKLA 20140512
+// - vesselid in methode body to save ram
+// WKLA 20140416 V0.1.12
+// - every minute the logger will flush the file.
+// - writing version number to eeprom for FAT32 Bootloader
+// - new stop message with reason why logger creates a new file
+// - calculating the right stop voltage
+// WKLA 20140123 V0.1.10
+// - selftest enhanced
+// WKLA 20131123 V0.1.9
+// - VesselID into EEPROM
+// - New initialise section for better factory tests
+// WKLA 20131120 V0.1.8
+// - wait 30 seconds for logger start
+// WKLA 20131120 V0.1.7
+// - making gyro and vcc messages selectable with settings
+// - writing the actual settings into a file called OSEAMLOG.CNF
+// WKLA 20131110 V0.1.6
+// - debug version
+// WKLA 20131107 V0.1.5
+// - for rev 3 boards now you can switch the 3V3 supply.
+//   So you can reset the sd card without user interaction.
+//   For rev2 and rev1 boards this option has no impact-
+// WKLA 20131101 V0.1.4
+// - Bug in reading config file fixed.
+// WKLA 20131029 V0.1.3
+// - testing free memory
+// WKLA 20131028 V0.1.2
+// - saving settings into EEPROM
+// WKLA 20131027 V0.0.3
+// - changing to AltSoftSerial
+// WKLA 20131026
+// - changes according to used memory
+// - implementing 9N1 protocoll for seatalk
+// - implementing seatalk protokoll
+// - changing to SdFat library
+// WKLA 20131010
+// - implemeting crc for own data.
+
 // define for the possibility of output of vcc messages
 #define doOutputVcc
 
@@ -38,100 +137,6 @@
 
 #include <avr/pgmspace.h>
 #include <util/crc16.h>
-
-/*
- OpenSeaMap.ino - Logger for the OpenSeaMap - Version 0.1.15
- Copyright (c) 2014 Wilfried Klaas.  All right reserved.
-
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU Lesser General Public
- License as published by the Free Software Foundation; either
- version 2.1 of the License, or (at your option) any later version.
-
- This library is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- Lesser General Public License for more details.
-
- You should have received a copy of the GNU Lesser General Public
- License along with this library; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- */
-/*
-  This program is a simple logger, which will take the input from 2 serial
- devices with the NMEA 0183 protokoll and write it down to a sd card.
- Additionally it will take the input from a onboard gyro device (MPU 6050)
- and write it into the same file. To every record it will add the timestamp
- of the arduino, so that the after processing process will determine the exact
- time of the event. (Like the GPS time).
- On startup and every hour the system will generate a new file.
- The programm can determine the shutdown and close all files.
-
- On the sd card can be a file named config.dat.
- First line is the baudrate of the NMEA A Port,
- Second line is the baudrate of the NMEA B Port
-
- If there ist no file, the default value will be used. Which is, both serial are active with
- standart NMEA0183 protokoll (4800, 8N1);
- 0 port is not active
- 1 = 1200 Baud
- 2 = 2400 Baud
- 3 = 4800 Baud * Default
- 4 = 9600 Baud (only NMEA A)
- 5 = 19200 Baud (only NMEA A)
-
- for the first serial you can activate the SEATALK Protokoll, which has an other format.
- If you add an s before the baud value, seatalk protokoll will be activated.
-
- To Load firmware to OSM Lodder rename hex file to OSMFIRMW.HEX and put it on a FAT16 formatted SD card.
- */
-// WKLA 20140701
-// - rebuild for new 9N1 serial lib
-// - overrun for the time at 18 hours
-// - output config with a new NMEA message
-// - in seatalk mode the baud rate is set to 4800 Baud
-// - option for checking NMEA sectences
-// - some comments for defines
-// - getting the bootloader version
-// - minimize send buffer for alt soft serial
-// WKLA 20140512
-// - vesselid in methode body to save ram
-// WKLA 20140416 V0.1.12
-// - every minutte the logger will flush the file.
-// - writing version number to eeprom for FAT32 Bootloader
-// - new stop message with reason why logger creates a new file
-// - calculating the right stop voltage
-// WKLA 20140123 V0.1.10
-// - selftest enhanced
-// WKLA 20131123 V0.1.9
-// - VesselID into EEPROM
-// - New initialise section for better factory tests
-// WKLA 20131120 V0.1.8
-// - wait 30 seconds for logger start
-// WKLA 20131120 V0.1.7
-// - making gyro and vcc messages selectable with settings
-// - writing the actual settings into a file called OSEAMLOG.CNF
-// WKLA 20131110 V0.1.6
-// - debug version
-// WKLA 20131107 V0.1.5
-// - for rev 3 boards now you can switch the 3V3 supply.
-//   So you can reset the sd card without user interaction.
-//   For rev2 and rev1 boards this option has no impact-
-// WKLA 20131101 V0.1.4
-// - Bug in reading config file fixed.
-// WKLA 20131029 V0.1.3
-// - testing free memory
-// WKLA 20131028 V0.1.2
-// - saving settings into EEPROM
-// WKLA 20131027 V0.0.3
-// - changing to AltSoftSerial
-// WKLA 20131026
-// - changes according to used memory
-// - implementing 9N1 protocoll for seatalk
-// - implementing seatalk protokoll
-// - changing to SdFat library
-// WKLA 20131010
-// - implemeting crc for own data.
 
 SdFat sd;
 SdFile dataFile;
@@ -325,6 +330,8 @@ void getParameters() {
   dbgOutLn2(outputs, HEX);
   dbgOut(',');
   dbgOutLn2(bootloaderVersion, HEX);
+  dbgOut(',');
+  dbgOutLn2(crc, HEX);
 
   if (baudA > 0x06) {
     baudA = 3;
@@ -435,7 +442,7 @@ void getParameters() {
     outputGyro = (outputs & 0x02) > 0;
   }
 
-  outputParameter(baudA, baudB, outputs, vesselID, bootloaderVersion);
+  outputParameter(baudA, baudB, outputs, vesselID, bootloaderVersion, crc);
 
   initSerials(baudA, baudB);
 }
@@ -444,7 +451,7 @@ void getParameters() {
  * writing parameter to oseamlog.cnf file.
  * So on every sd card you will have the actual parameters of the logger.
  **/
-inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long vesselID, byte bootloaderVersion) {
+inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long vesselID, byte bootloaderVersion, word crc) {
   strcpy_P(filename, CNF_FILENAME);
   if (sd.exists(filename)) {
     sd.remove(filename);
@@ -462,6 +469,7 @@ inline void outputParameter(byte baudA, byte baudB, byte outputs, unsigned long 
   dataFile.println(vesselID, HEX);
   dataFile.println(normVoltage);
   dataFile.println(bootloaderVersion);
+  dataFile.println(crc, HEX);
 
   dataFile.close();
 }
@@ -550,10 +558,17 @@ inline void initGyro() {
  **/
 static word CalculateChecksum (word addr, word size) {
   word crc = ~0;
-  prog_uint8_t* p = (prog_uint8_t*) addr;
+
+/*  prog_uint8_t* p = (prog_uint8_t*) addr;
   for (word i = 0; i < size; ++i) {
     crc = _crc16_update(crc, pgm_read_byte(p++));
   }
+  */
+  word endCrc = addr + size;
+  for (word i = addr; i < endCrc; ++i) {
+    crc = _crc16_update(crc, pgm_read_byte((void *)i));
+  }
+  
   return crc;
 }
 
@@ -879,7 +894,7 @@ inline void SeaTalkInputA(int incomingByte) {
 inline void writeDatagram() {
   if (indexA == dataLength) {
     dbgOutLn(SEATALK_NMEA_MESSAGE);
-    strcpy(linedata, SEATALK_NMEA_MESSAGE);
+    strcpy_P(linedata, SEATALK_NMEA_MESSAGE);
 
     for (byte i = 0; i < indexA; i++) {
       byte value = bufferA[i];
@@ -888,6 +903,7 @@ inline void writeDatagram() {
       c = value & 0x0F;
       strcat(linedata, convertNibble2Hex(c));
     }
+
     writeData(startA, CHANNEL_A_IDENTIFIER, linedata);
     indexA = 0;
   }
@@ -1023,7 +1039,7 @@ bool checkNMEAData(byte* myBuffer) {
   byte crc = 0;
   byte fileCrc = 0;
   byte index = 0;
-  for (uint8_t i = 0; i < strlen(data); i++) {
+  for (byte i = 1; i < strlen(data); i++) {
     char value = data[i];
     if ((value < 0x20) || (value > 0x80)) {
       return false;
@@ -1096,7 +1112,7 @@ void writeChannelMarker(char marker) {
 void writeNMEAData(char* data) {
   writeLEDOn();
   byte crc = 0;
-  for (uint8_t i = 0; i < strlen(data); i++) {
+  for (byte i = 0; i < strlen(data); i++) {
     crc ^= data[i];
   }
   dataFile.write('$');
