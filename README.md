@@ -9,7 +9,7 @@ HowTo http://wiki.openseamap.org/wiki/OpenSeaMap-dev:HW-logger/OSeaM
 
 Specification http://wiki.openseamap.org/wiki/OpenSeaMap-dev:HW-logger/specification#NMEA-0183_HW-Logger
 
-Developerpage with all actual informations http://www.mcsdepthlogger.tk
+Developerpage with all actual informations http://www.wk-music.de/ArduinoWiki/doku.php?id=arduino:oseam
 
 OpenSeaMapLogger
 ================
